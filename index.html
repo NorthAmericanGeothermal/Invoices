@@ -221,6 +221,12 @@ tr.confirm-row:last-child td{border-bottom:none;}
 .csv-cat{font-size:10px;padding:2px 7px;border-radius:4px;background:#e0e7ff;color:#3730a3;white-space:nowrap;flex-shrink:0;}
 .csv-vendor{flex:1;font-weight:500;}
 .csv-amt{color:#dc2626;font-weight:500;white-space:nowrap;}
+.sheet-picker{margin-bottom:12px;padding:12px 14px;background:#f8faff;border:0.5px solid #dbeafe;border-radius:8px;}
+.sheet-picker-label{font-size:12px;color:#555;margin-bottom:8px;}
+.sheet-btns{display:flex;gap:6px;flex-wrap:wrap;}
+.sheet-btn{font-size:12px;padding:5px 14px;border:0.5px solid #ddd;border-radius:6px;background:#fff;color:#555;cursor:pointer;font-family:inherit;}
+.sheet-btn:hover{border-color:#2563eb;color:#2563eb;}
+.sheet-btn.active{border-color:#2563eb;background:#eff6ff;color:#2563eb;font-weight:500;}
 
 /* ── Toast ── */
 .toast{position:fixed;bottom:1.5rem;right:1.5rem;background:#1a1a1a;color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;z-index:300;opacity:0;transition:opacity 0.3s;pointer-events:none;}
@@ -405,8 +411,12 @@ tr.confirm-row:last-child td{border-bottom:none;}
 <!-- CSV Preview Modal -->
 <div class="modal-bg" id="csv-modal">
   <div class="modal">
-    <div class="modal-title">Import Payables from CSV</div>
+    <div class="modal-title">Import Payables from Spreadsheet</div>
     <div class="modal-sub" id="csv-modal-sub">Review before importing.</div>
+    <div class="sheet-picker" id="csv-sheet-picker" style="display:none">
+      <div class="sheet-picker-label">This file has multiple sheets — pick one to import:</div>
+      <div class="sheet-btns" id="csv-sheet-btns"></div>
+    </div>
     <div class="csv-preview-list" id="csv-preview-list"></div>
     <div class="modal-footer">
       <button class="modal-close" onclick="closeCsvModal()">Cancel</button>
@@ -476,6 +486,8 @@ var catOpenSet = new Set(); // "jobId:catId" that are expanded
 var pendingArchiveId = null;
 var csvPendingJobId = null;
 var csvPendingRows = [];
+var csvPendingType  = 'payables'; // 'payables' | 'receivables'
+var pendingWorkbook = null;
 
 // ══════════════════════════════════════════════════════════
 // INIT
@@ -1444,10 +1456,16 @@ function readSpreadsheetFile(file, jobId) {
       try {
         var data = e.target.result;
         var workbook = XLSX.read(data, { type: 'binary' });
-        var sheet = workbook.Sheets[workbook.SheetNames[0]];
-        // Convert the first sheet to CSV text, then reuse existing parser
-        var csvText = XLSX.utils.sheet_to_csv(sheet);
-        showCSVPreview(csvText, jobId);
+        pendingWorkbook = workbook;
+
+        if (workbook.SheetNames.length === 1) {
+          // Only one sheet — go straight to preview
+          var csvText = XLSX.utils.sheet_to_csv(workbook.Sheets[workbook.SheetNames[0]]);
+          showCSVPreview(csvText, jobId);
+        } else {
+          // Multiple sheets — show picker first
+          showSheetPicker(workbook.SheetNames, jobId);
+        }
       } catch(err) {
         showToast('Could not read Excel file: ' + err.message);
       }
@@ -1459,22 +1477,79 @@ function readSpreadsheetFile(file, jobId) {
   }
 }
 
-function showCSVPreview(text, jobId) {
-  var rows = parseCSVText(text);
-  if (!rows.length) { showToast('No data found in CSV.'); return; }
-  csvPendingRows = rows;
-  var html = rows.map(function(r) {
-    return '<div class="csv-row"><span class="csv-cat">' + esc(r.category) + '</span><span class="csv-vendor">' + esc(r.vendor) + '</span><span class="csv-amt">' + fmtMoney(r.total_amount) + '</span></div>';
+function showSheetPicker(sheetNames, jobId) {
+  var btnsEl = document.getElementById('csv-sheet-btns');
+  btnsEl.innerHTML = sheetNames.map(function(n) {
+    return '<button class="sheet-btn" onclick="selectExcelSheet(\'' + esc(n) + '\')">' + esc(n) + '</button>';
   }).join('');
-  document.getElementById('csv-preview-list').innerHTML = html;
-  document.getElementById('csv-modal-sub').textContent = rows.length + ' line item' + (rows.length !== 1 ? 's' : '') + ' found. Review then click Import.';
+  document.getElementById('csv-sheet-picker').style.display = 'block';
+  document.getElementById('csv-preview-list').innerHTML = '<div style="padding:20px;text-align:center;color:#bbb;font-size:12px;">Select a sheet above to preview.</div>';
+  document.getElementById('csv-modal-sub').textContent = sheetNames.length + ' sheets found in this file.';
+  document.getElementById('csv-import-btn').disabled = true;
   document.getElementById('csv-modal').classList.add('open');
 }
 
-function closeCsvModal() { document.getElementById('csv-modal').classList.remove('open'); csvPendingRows = []; }
+function selectExcelSheet(sheetName) {
+  if (!pendingWorkbook) return;
+  // Detect sheet type from name
+  var lc = sheetName.toLowerCase();
+  csvPendingType = lc.includes('receiv') ? 'receivables' : 'payables';
+  // Highlight selected sheet button
+  document.querySelectorAll('.sheet-btn').forEach(function(btn) {
+    btn.className = 'sheet-btn' + (btn.textContent === sheetName ? ' active' : '');
+  });
+  var sheet = pendingWorkbook.Sheets[sheetName];
+  var csvText = XLSX.utils.sheet_to_csv(sheet);
+  var rows = csvPendingType === 'receivables' ? parseReceivablesCSV(csvText) : parsePayablesCSV(csvText);
+  var previewEl = document.getElementById('csv-preview-list');
+  var importBtn = document.getElementById('csv-import-btn');
+  if (!rows.length) {
+    previewEl.innerHTML = '<div style="padding:20px;text-align:center;color:#bbb;font-size:12px;">No ' + csvPendingType + ' data found in "' + esc(sheetName) + '". Try another sheet.</div>';
+    importBtn.disabled = true;
+    return;
+  }
+  csvPendingRows = rows;
+  previewEl.innerHTML = buildPreviewHTML(rows, csvPendingType);
+  var typeLabel = csvPendingType === 'receivables' ? 'milestone' : 'payable';
+  document.getElementById('csv-modal-sub').textContent = rows.length + ' ' + typeLabel + ' item' + (rows.length !== 1 ? 's' : '') + ' found in "' + sheetName + '". Review then click Import.';
+  importBtn.disabled = false;
+}
+
+function showCSVPreview(text, jobId) {
+  // Auto-detect sheet type from content keywords
+  var sample = text.toLowerCase().substring(0, 600);
+  if ((sample.includes('upon') || sample.includes('milestone')) && !sample.includes('vendor')) {
+    csvPendingType = 'receivables';
+  } else if (sample.includes('amount due') && sample.includes('upon action')) {
+    csvPendingType = 'receivables';
+  } else {
+    csvPendingType = 'payables';
+  }
+  var rows = csvPendingType === 'receivables' ? parseReceivablesCSV(text) : parsePayablesCSV(text);
+  if (!rows.length) { showToast('No data found in file.'); return; }
+  csvPendingRows = rows;
+  document.getElementById('csv-sheet-picker').style.display = 'none';
+  document.getElementById('csv-preview-list').innerHTML = buildPreviewHTML(rows, csvPendingType);
+  var typeLabel = csvPendingType === 'receivables' ? 'milestone' : 'payable';
+  document.getElementById('csv-modal-sub').textContent = rows.length + ' ' + typeLabel + ' item' + (rows.length !== 1 ? 's' : '') + ' found. Review then click Import.';
+  document.getElementById('csv-import-btn').disabled = false;
+  document.getElementById('csv-modal').classList.add('open');
+}
+
+function closeCsvModal() {
+  document.getElementById('csv-modal').classList.remove('open');
+  document.getElementById('csv-sheet-picker').style.display = 'none';
+  csvPendingRows = [];
+  pendingWorkbook = null;
+}
 
 async function doImportCSV() {
   if (!csvPendingJobId || !csvPendingRows.length) return;
+  // Route to milestones importer when sheet type is receivables
+  if (csvPendingType === 'receivables') {
+    await doImportMilestones(csvPendingRows, csvPendingJobId);
+    return;
+  }
   var jobId = csvPendingJobId;
   var job   = findInstallJob(jobId);
   if (!job) return;
@@ -1566,6 +1641,166 @@ function matchCategory(raw) {
   if (r.includes('elec')) return 'Electrical';
   if (r.includes('other') || r.includes('permit') || r.includes('misc') || r.includes('commission') || r.includes('engineer')) return 'Other';
   return 'Other';
+}
+
+// ── Payables parser: handles real spreadsheet layout ─────────────────────────
+// Finds header row dynamically (scans for 'vendor' + 'amount' keywords, up to row 15).
+// Skips "Subtotals" rows. Tracks category with last-non-blank pattern (merged cells).
+// Includes $0-amount vendors (placeholder/budgeted lines).
+function parsePayablesCSV(text) {
+  var lines = text.split(/\r?\n/);
+  var headerIdx = -1, headers = [];
+
+  for (var hi = 0; hi < Math.min(lines.length, 15); hi++) {
+    var hcols = splitCSVLine(lines[hi]);
+    var hh    = hcols.map(function(c){ return c.trim().toLowerCase(); });
+    var hasVendor = hh.some(function(c){ return c.includes('vendor') || c.includes('contractor'); });
+    var hasAmt    = hh.some(function(c){ return c.includes('amount') || c.includes('total'); });
+    if (hasVendor && hasAmt) { headerIdx = hi; headers = hh; break; }
+  }
+
+  if (headerIdx === -1) {
+    // Fallback to simple parser
+    return parseCSVText(text);
+  }
+
+  function colIdx(keywords) {
+    return headers.findIndex(function(h){ return keywords.some(function(k){ return h.includes(k); }); });
+  }
+  var catCol    = colIdx(['category', 'cat']);
+  var vendorCol = colIdx(['vendor', 'contractor', 'company', 'name']);
+  var totalCol  = colIdx(['total amount', 'total due', 'amount due']);
+  if (totalCol === -1) totalCol = colIdx(['total', 'due']);
+  var paidCol   = colIdx(['amount paid', 'paid']);
+  var notesCol  = colIdx(['note']);
+
+  var lastCat = 'Other';
+  var result  = [];
+  for (var ri = headerIdx + 1; ri < lines.length; ri++) {
+    if (!lines[ri].trim()) continue;
+    var cols    = splitCSVLine(lines[ri]);
+    var rawCat  = catCol >= 0    ? (cols[catCol]    || '').trim() : '';
+    var vendor  = vendorCol >= 0 ? (cols[vendorCol] || '').trim() : '';
+
+    // Skip subtotal rows
+    var vl = vendor.toLowerCase().replace(/s$/, '');
+    var cl = rawCat.toLowerCase().replace(/s$/, '');
+    if (vl === 'subtotal' || cl === 'subtotal') continue;
+
+    // Track category (last-non-blank for merged-cell groups)
+    if (rawCat) lastCat = matchCategory(rawCat);
+
+    // Skip if no vendor name
+    if (!vendor) continue;
+
+    var totalStr = totalCol >= 0 ? (cols[totalCol] || '').replace(/[$,]/g, '').trim() : '';
+    var paidStr  = paidCol >= 0  ? (cols[paidCol]  || '').replace(/[$,]/g, '').trim() : '';
+    var total    = parseFloat(totalStr) || 0;
+    var paid     = parseFloat(paidStr)  || 0;
+    var notes    = notesCol >= 0 ? (cols[notesCol] || '').trim() : '';
+
+    result.push({ category: lastCat, vendor: vendor, total_amount: total, amount_paid: paid, notes: notes });
+  }
+  return result;
+}
+
+// ── Receivables parser: handles milestone payment schedule ────────────────────
+// Finds header row containing "Amount Due" + "Upon" (or "Description"/"Milestone").
+// Column layout (0-indexed): A=amount_due, B=description, D=amount_paid, E=date_paid, F=payment_method
+function parseReceivablesCSV(text) {
+  var lines    = text.split(/\r?\n/);
+  var startIdx = 0;
+
+  for (var hi = 0; hi < Math.min(lines.length, 15); hi++) {
+    var lc = lines[hi].toLowerCase();
+    if ((lc.includes('amount due') || lc.includes('amount')) &&
+        (lc.includes('upon') || lc.includes('description') || lc.includes('milestone'))) {
+      startIdx = hi + 1; break;
+    }
+  }
+
+  var result = [];
+  for (var ri = startIdx; ri < lines.length; ri++) {
+    if (!lines[ri].trim()) continue;
+    var cols    = splitCSVLine(lines[ri]);
+    if (cols.length < 2) continue;
+
+    var amtDue  = parseFloat((cols[0] || '').replace(/[$,]/g, '').trim()) || 0;
+    var desc    = (cols[1] || '').trim();
+    var amtPaid = parseFloat((cols[3] || '').replace(/[$,]/g, '').trim()) || 0;
+    var datePd  = (cols[4] || '').trim();
+    var method  = (cols[5] || '').trim();
+
+    // Skip blank rows and header-ish rows that slipped through
+    if (!desc && !amtDue) continue;
+    var dl = desc.toLowerCase();
+    if (dl === 'upon action' || dl === 'description' || dl === 'milestone') continue;
+    if (dl.includes('total') && !dl.includes('upon') && !dl.includes('reservation') && !dl.includes('startup')) continue;
+
+    result.push({ description: desc, amount_due: amtDue, amount_paid: amtPaid, date_paid: datePd, payment_method: method, notes: '' });
+  }
+  return result;
+}
+
+// ── Preview HTML builder ──────────────────────────────────────────────────────
+function buildPreviewHTML(rows, type) {
+  if (type === 'receivables') {
+    return rows.map(function(r) {
+      return '<div class="csv-row" style="display:flex;gap:8px;align-items:baseline;">'
+        + '<span class="csv-vendor" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + esc(r.description) + '">' + esc(r.description || '—') + '</span>'
+        + '<span class="csv-amt" style="min-width:90px;text-align:right;color:#16a34a;">' + fmtMoney(r.amount_due) + '</span>'
+        + (r.amount_paid ? '<span style="min-width:70px;text-align:right;color:#888;font-size:11px;padding-left:4px;">paid ' + fmtMoney(r.amount_paid) + '</span>' : '')
+        + '</div>';
+    }).join('');
+  }
+  return rows.map(function(r) {
+    return '<div class="csv-row"><span class="csv-cat">' + esc(r.category) + '</span><span class="csv-vendor">' + esc(r.vendor) + '</span><span class="csv-amt">' + fmtMoney(r.total_amount) + '</span></div>';
+  }).join('');
+}
+
+// ── Import milestones into receivable_milestones table ───────────────────────
+async function doImportMilestones(rows, jobId) {
+  var job = findInstallJob(jobId);
+  if (!job) return;
+  var importBtn = document.getElementById('csv-import-btn');
+  importBtn.disabled = true; importBtn.textContent = 'Importing…';
+
+  try {
+    var insertRows = rows.map(function(r, i) {
+      return {
+        job_id:         jobId,
+        description:    r.description,
+        amount_due:     r.amount_due,
+        amount_paid:    r.amount_paid  || 0,
+        date_paid:      r.date_paid    || '',
+        payment_method: r.payment_method || '',
+        notes:          r.notes         || '',
+        sort_order:     i
+      };
+    });
+    var ins = await sb.from('receivable_milestones').insert(insertRows).select();
+    if (ins.error) throw new Error(ins.error.message);
+    if (!job.milestones) job.milestones = [];
+    ins.data.forEach(function(m){ job.milestones.push(m); });
+    closeCsvModal();
+    // Re-render receivables section
+    var sid  = jobId.replace(/-/g, '_');
+    var body = document.getElementById('body-' + sid);
+    if (body && jobOpenSet.has(jobId)) {
+      var sections = body.querySelectorAll('.section-block');
+      if (sections.length >= 1) {
+        sections[0].outerHTML = renderReceivablesSection(job);
+      }
+    }
+    updateJobHeaderStats(jobId);
+    updateInstallStats();
+    logActivity(jobId, 'Imported receivable milestones', rows.length + ' milestones');
+    showToast(rows.length + ' milestone' + (rows.length !== 1 ? 's' : '') + ' imported.');
+    csvPendingRows = [];
+  } catch(e) {
+    showToast('Import error: ' + e.message);
+  }
+  importBtn.disabled = false; importBtn.textContent = 'Import';
 }
 
 document.getElementById('csv-modal').addEventListener('click', function(e){ if (e.target === this) closeCsvModal(); });
