@@ -68,6 +68,7 @@ tr:hover td{background:#fafaf8;}
 .badge-unpaid{font-size:10px;padding:2px 8px;border-radius:5px;background:#fee2e2;color:#dc2626;white-space:nowrap;}
 .badge-partial{font-size:10px;padding:2px 8px;border-radius:5px;background:#fef9c3;color:#ca8a04;white-space:nowrap;}
 .badge-paid{font-size:10px;padding:2px 8px;border-radius:5px;background:#dcfce7;color:#16a34a;white-space:nowrap;}
+.badge-noinvoice{font-size:10px;padding:2px 8px;border-radius:5px;background:#ede9fe;color:#7c3aed;white-space:nowrap;}
 .progress-bar-wrap{width:80px;height:6px;background:#f0f0f0;border-radius:3px;margin-top:4px;}
 .progress-bar{height:6px;border-radius:3px;background:#2563eb;}
 .empty{padding:3rem;text-align:center;color:#aaa;font-size:13px;}
@@ -374,15 +375,18 @@ function renderTable() {
 
   var html = '';
   list.forEach(function(inv) {
-    var total = inv.total_amount || 0;
-    var paid = inv.amount_paid || 0;
+    var total   = inv.total_amount || 0;
+    var paid    = inv.amount_paid || 0;
     var balance = inv.outstanding_balance || 0;
-    var isPartial = paid > 0;
+    var isPartial = paid > 0 && balance < total;
+    var noInvoice = inv.no_invoice_yet;
     var pct = total > 0 ? Math.round((paid / total) * 100) : 0;
-    var balClass = isPartial ? 'amount bal-orange' : 'amount bal-red';
-    var badge = isPartial
-      ? '<span class="badge-partial">Partial</span>'
-      : '<span class="badge-unpaid">Unpaid</span>';
+    var balClass = noInvoice ? 'amount' : isPartial ? 'amount bal-orange' : 'amount bal-red';
+    var badge = noInvoice
+      ? '<span class="badge-noinvoice">No invoice yet</span>'
+      : isPartial
+        ? '<span class="badge-partial">Partial</span>'
+        : '<span class="badge-unpaid">Unpaid</span>';
     var dateStr = inv.job_date ? fmtDate(inv.job_date) : '—';
 
     html += '<tr>';
