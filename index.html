@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HCP Outstanding Invoices</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f4f4f0;color:#1a1a1a;min-height:100vh;}
+
+/* ── Login ── */
+#login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;}
+.login-card{background:#fff;border-radius:16px;border:0.5px solid #ddd;padding:2rem;width:340px;max-width:90vw;text-align:center;}
+.login-logo{font-size:22px;font-weight:600;margin-bottom:4px;}.login-logo span{color:#2563eb;}
+.login-sub{font-size:13px;color:#888;margin-bottom:2rem;}
+.pin-input{width:100%;padding:10px 14px;border:0.5px solid #ddd;border-radius:8px;font-size:16px;text-align:center;letter-spacing:6px;background:#f9f9f7;margin-bottom:1rem;}
+.pin-input:focus{outline:none;border-color:#2563eb;}
+.login-btn{width:100%;padding:11px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;}
+.login-btn:hover{background:#1d4ed8;}
+.login-error{font-size:12px;color:#dc2626;margin-top:8px;}
+
+/* ── App shell ── */
+#app{display:none;}
+.topbar{background:#fff;border-bottom:0.5px solid #e5e5e5;padding:0 1.5rem;display:flex;align-items:center;gap:1rem;height:52px;position:sticky;top:0;z-index:100;}
+.topbar-logo{font-size:15px;font-weight:600;flex:1;}.topbar-logo span{color:#2563eb;}
+.topbar-user{font-size:12px;color:#888;}.topbar-user strong{color:#1a1a1a;}
+.logout-btn{font-size:12px;padding:4px 10px;border:0.5px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;color:#888;}
+.sync-btn{font-size:12px;padding:5px 12px;border:0.5px solid #2563eb;border-radius:6px;background:#fff;cursor:pointer;color:#2563eb;display:flex;align-items:center;gap:5px;}
+.sync-btn:hover{background:#eff6ff;}
+.sync-btn:disabled{opacity:0.5;cursor:default;}
+.sync-spin{display:inline-block;animation:spin 1s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.last-synced{font-size:11px;color:#aaa;}
+.main{max-width:1100px;margin:0 auto;padding:1.5rem;}
+
+/* ── Stats ── */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:1.5rem;}
+.stat{background:#fff;border-radius:10px;border:0.5px solid #e5e5e5;padding:12px 16px;}
+.stat-label{font-size:11px;color:#888;margin-bottom:4px;}
+.stat-value{font-size:24px;font-weight:600;color:#1a1a1a;}
+.stat-sub{font-size:11px;color:#aaa;margin-top:2px;}
+
+/* ── Filter bar ── */
+.filter-bar{display:flex;gap:8px;align-items:center;margin-bottom:1rem;flex-wrap:wrap;}
+.fbtn{padding:6px 14px;font-size:13px;border-radius:8px;border:0.5px solid #ddd;background:#fff;color:#888;cursor:pointer;}
+.fbtn.active{background:#f4f4f0;color:#1a1a1a;font-weight:500;border-color:#bbb;}
+.search-input{margin-left:auto;font-size:12px;padding:6px 12px;border:0.5px solid #ddd;border-radius:8px;background:#f9f9f7;font-family:inherit;width:220px;}
+.search-input:focus{outline:none;border-color:#2563eb;}
+.sort-select{font-size:12px;padding:6px 10px;border:0.5px solid #ddd;border-radius:8px;background:#fff;font-family:inherit;color:#555;cursor:pointer;}
+
+/* ── Table ── */
+.table-wrap{background:#fff;border-radius:12px;border:0.5px solid #e5e5e5;overflow:hidden;overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+thead tr{border-bottom:0.5px solid #e5e5e5;}
+th{padding:10px 14px;text-align:left;color:#888;font-weight:400;white-space:nowrap;font-size:11px;text-transform:uppercase;letter-spacing:0.4px;cursor:pointer;user-select:none;}
+th:hover{color:#555;}
+th .sort-arrow{font-size:10px;margin-left:3px;color:#bbb;}
+td{padding:10px 14px;border-bottom:0.5px solid #f0f0f0;vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:#fafaf8;}
+.cust-name{font-weight:500;color:#1a1a1a;}
+.cust-addr{font-size:11px;color:#888;margin-top:2px;}
+.job-num{font-size:11px;color:#888;}
+.amount{font-weight:600;font-variant-numeric:tabular-nums;}
+.bal-red{color:#dc2626;}
+.bal-orange{color:#ca8a04;}
+.badge-unpaid{font-size:10px;padding:2px 8px;border-radius:5px;background:#fee2e2;color:#dc2626;white-space:nowrap;}
+.badge-partial{font-size:10px;padding:2px 8px;border-radius:5px;background:#fef9c3;color:#ca8a04;white-space:nowrap;}
+.badge-paid{font-size:10px;padding:2px 8px;border-radius:5px;background:#dcfce7;color:#16a34a;white-space:nowrap;}
+.progress-bar-wrap{width:80px;height:6px;background:#f0f0f0;border-radius:3px;margin-top:4px;}
+.progress-bar{height:6px;border-radius:3px;background:#2563eb;}
+.empty{padding:3rem;text-align:center;color:#aaa;font-size:13px;}
+.error-banner{background:#fee2e2;color:#dc2626;border-radius:8px;padding:10px 16px;font-size:13px;margin-bottom:1rem;}
+
+/* ── Toast ── */
+.toast{position:fixed;bottom:1.5rem;right:1.5rem;background:#1a1a1a;color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;z-index:300;opacity:0;transition:opacity 0.3s;pointer-events:none;}
+.toast.show{opacity:1;}
+
+/* ── Mobile ── */
+@media(max-width:640px){
+  .stats{grid-template-columns:1fr 1fr;gap:8px;}
+  .stat-value{font-size:20px;}
+  .topbar{flex-wrap:wrap;height:auto;padding:8px 12px;gap:6px;}
+  .topbar-logo{font-size:14px;width:100%;}
+  .main{padding:1rem 0.75rem;}
+  .search-input{width:100%;margin-left:0;}
+  table{font-size:12px;}
+  th,td{padding:8px 10px;}
+  .cust-addr,.job-num,.progress-bar-wrap{display:none;}
+}
+</style>
+</head>
+<body>
+
+<!-- Login -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">HCP <span>Invoices</span></div>
+    <div class="login-sub">Outstanding invoice tracker</div>
+    <input type="password" class="pin-input" id="pin-input" placeholder="Enter your PIN" maxlength="6" inputmode="numeric">
+    <button class="login-btn" onclick="doLogin()">Sign in</button>
+    <div class="login-error" id="login-error"></div>
+  </div>
+</div>
+
+<!-- App -->
+<div id="app">
+  <div class="topbar">
+    <div class="topbar-logo">HCP <span>Outstanding Invoices</span></div>
+    <button class="sync-btn" id="sync-btn" onclick="syncInvoices()">&#8635; Sync HCP</button>
+    <span class="last-synced" id="last-synced"></span>
+    <div class="topbar-user">Signed in as <strong id="topbar-name"></strong></div>
+    <button class="logout-btn" onclick="doLogout()">Sign out</button>
+  </div>
+
+  <div class="main">
+    <div id="error-banner" class="error-banner" style="display:none;"></div>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-label">Total outstanding</div>
+        <div class="stat-value" id="s-total">—</div>
+        <div class="stat-sub">across all invoices</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Invoices with balance</div>
+        <div class="stat-value" id="s-count">—</div>
+        <div class="stat-sub">need collection</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Completely unpaid</div>
+        <div class="stat-value" id="s-unpaid" style="color:#dc2626">—</div>
+        <div class="stat-sub">no payment received</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Partially paid</div>
+        <div class="stat-value" id="s-partial" style="color:#ca8a04">—</div>
+        <div class="stat-sub">deposit or partial taken</div>
+      </div>
+    </div>
+
+    <div class="filter-bar">
+      <button class="fbtn active" id="f-all" onclick="setFilter('all')">All outstanding</button>
+      <button class="fbtn" id="f-unpaid" onclick="setFilter('unpaid')">Unpaid only</button>
+      <button class="fbtn" id="f-partial" onclick="setFilter('partial')">Partial only</button>
+      <select class="sort-select" id="sort-select" onchange="setSort(this.value)">
+        <option value="balance-desc">Highest balance first</option>
+        <option value="balance-asc">Lowest balance first</option>
+        <option value="date-desc">Newest job first</option>
+        <option value="date-asc">Oldest job first</option>
+        <option value="name-asc">Customer A–Z</option>
+      </select>
+      <input type="text" class="search-input" id="search-input" placeholder="Search customer or address..." oninput="renderTable()">
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th onclick="setSort('name-asc')">Customer <span class="sort-arrow" id="arr-name"></span></th>
+            <th onclick="setSort('date-desc')">Job date <span class="sort-arrow" id="arr-date"></span></th>
+            <th>Invoice #</th>
+            <th onclick="setSort('total-desc')">Total <span class="sort-arrow" id="arr-total"></span></th>
+            <th>Paid</th>
+            <th onclick="setSort('balance-desc')">Balance due <span class="sort-arrow" id="arr-balance"></span></th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="invoice-tbody">
+          <tr><td colspan="7" class="empty">Click "Sync HCP" to load outstanding invoices.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+var SUPABASE_URL = 'https://hpgwwegjsxyxovdattoc.supabase.co';
+var SUPABASE_KEY = 'sb_publishable_D2PqYQoJjZ8koEM9NPvmeg_KB_Wa66H';
+var sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+var currentUser = null;
+var users = [];
+var invoices = []; // all outstanding invoices from last sync
+var filterMode = 'all';
+var sortMode = 'balance-desc';
+var syncing = false;
+
+// ── Auth ──────────────────────────────────────────────────
+
+async function init() {
+  var saved = localStorage.getItem('hcpinv_user');
+  if (saved) { currentUser = JSON.parse(saved); showApp(); return; }
+  var res = await sb.from('users').select('*').order('name');
+  users = res.data || [];
+  document.getElementById('login-screen').style.display = 'flex';
+}
+
+function doLogin() {
+  var pin = document.getElementById('pin-input').value.trim();
+  if (!pin) { document.getElementById('login-error').textContent = 'Enter your PIN.'; return; }
+  var user = users.find(function(u){ return u.pin === pin; });
+  if (!user) {
+    document.getElementById('login-error').textContent = 'PIN not recognized.';
+    document.getElementById('pin-input').value = '';
+    return;
+  }
+  currentUser = user;
+  localStorage.setItem('hcpinv_user', JSON.stringify(user));
+  showApp();
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && document.getElementById('login-screen').style.display !== 'none') doLogin();
+});
+
+document.getElementById('pin-input').addEventListener('input', function() {
+  if (this.value.length >= 4) {
+    var user = users.find(function(u){ return u.pin === this.value; }, this);
+    if (user) doLogin();
+  }
+});
+
+function doLogout() {
+  currentUser = null;
+  localStorage.removeItem('hcpinv_user');
+  invoices = [];
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('pin-input').value = '';
+}
+
+function showApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('topbar-name').textContent = currentUser.name;
+
+  // restore last sync from localStorage
+  var cached = localStorage.getItem('hcpinv_data');
+  if (cached) {
+    try {
+      var obj = JSON.parse(cached);
+      invoices = obj.invoices || [];
+      updateLastSynced(obj.syncedAt);
+      renderAll();
+    } catch(e) {}
+  }
+}
+
+// ── Sync ──────────────────────────────────────────────────
+
+async function syncInvoices() {
+  if (syncing) return;
+  syncing = true;
+  var btn = document.getElementById('sync-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="sync-spin">&#8635;</span> Syncing...';
+  hideError();
+
+  try {
+    var res = await fetch(SUPABASE_URL + '/functions/v1/hcp-invoices', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + SUPABASE_KEY,
+        'apikey': SUPABASE_KEY
+      },
+      body: JSON.stringify({})
+    });
+
+    if (!res.ok) {
+      var txt = await res.text();
+      throw new Error('Edge function error ' + res.status + ': ' + txt);
+    }
+
+    var data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    invoices = data.invoices || [];
+    var now = new Date().toISOString();
+    localStorage.setItem('hcpinv_data', JSON.stringify({ invoices: invoices, syncedAt: now }));
+    updateLastSynced(now);
+    renderAll();
+    showToast('Synced — ' + invoices.length + ' outstanding invoice' + (invoices.length !== 1 ? 's' : '') + ' found.');
+  } catch(e) {
+    showError(e.message || 'Sync failed. Check the edge function is deployed.');
+  }
+
+  syncing = false;
+  btn.disabled = false;
+  btn.innerHTML = '&#8635; Sync HCP';
+}
+
+function updateLastSynced(isoStr) {
+  if (!isoStr) return;
+  var d = new Date(isoStr);
+  var opts = { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true };
+  document.getElementById('last-synced').textContent = 'Last synced: ' + d.toLocaleString('en-US', opts);
+}
+
+// ── Filters & Sort ────────────────────────────────────────
+
+function setFilter(mode) {
+  filterMode = mode;
+  ['all','unpaid','partial'].forEach(function(f) {
+    document.getElementById('f-' + f).className = 'fbtn' + (f === mode ? ' active' : '');
+  });
+  renderTable();
+}
+
+function setSort(mode) {
+  sortMode = mode;
+  document.getElementById('sort-select').value = mode;
+  renderTable();
+}
+
+function getFiltered() {
+  var q = (document.getElementById('search-input').value || '').toLowerCase();
+  return invoices.filter(function(inv) {
+    if (filterMode === 'unpaid' && inv.amount_paid > 0) return false;
+    if (filterMode === 'partial' && inv.amount_paid <= 0) return false;
+    if (q) {
+      var haystack = ((inv.customer_name || '') + ' ' + (inv.address || '') + ' ' + (inv.invoice_number || '')).toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function getSorted(list) {
+  return list.slice().sort(function(a, b) {
+    switch (sortMode) {
+      case 'balance-desc': return b.outstanding_balance - a.outstanding_balance;
+      case 'balance-asc':  return a.outstanding_balance - b.outstanding_balance;
+      case 'total-desc':   return b.total_amount - a.total_amount;
+      case 'date-desc':    return new Date(b.job_date || 0) - new Date(a.job_date || 0);
+      case 'date-asc':     return new Date(a.job_date || 0) - new Date(b.job_date || 0);
+      case 'name-asc':     return (a.customer_name || '').localeCompare(b.customer_name || '');
+      default: return 0;
+    }
+  });
+}
+
+// ── Render ────────────────────────────────────────────────
+
+function renderAll() {
+  updateStats();
+  renderTable();
+}
+
+function updateStats() {
+  var totalBalance = invoices.reduce(function(s, inv) { return s + (inv.outstanding_balance || 0); }, 0);
+  var unpaid = invoices.filter(function(inv) { return inv.amount_paid <= 0; }).length;
+  var partial = invoices.filter(function(inv) { return inv.amount_paid > 0; }).length;
+
+  document.getElementById('s-total').textContent = fmt(totalBalance);
+  document.getElementById('s-count').textContent = invoices.length;
+  document.getElementById('s-unpaid').textContent = unpaid;
+  document.getElementById('s-partial').textContent = partial;
+}
+
+function renderTable() {
+  var list = getSorted(getFiltered());
+  var tbody = document.getElementById('invoice-tbody');
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty">' +
+      (invoices.length ? 'No invoices match your filter.' : 'Click "Sync HCP" to load outstanding invoices.') +
+      '</td></tr>';
+    return;
+  }
+
+  var html = '';
+  list.forEach(function(inv) {
+    var total = inv.total_amount || 0;
+    var paid = inv.amount_paid || 0;
+    var balance = inv.outstanding_balance || 0;
+    var isPartial = paid > 0;
+    var pct = total > 0 ? Math.round((paid / total) * 100) : 0;
+    var balClass = isPartial ? 'amount bal-orange' : 'amount bal-red';
+    var badge = isPartial
+      ? '<span class="badge-partial">Partial</span>'
+      : '<span class="badge-unpaid">Unpaid</span>';
+    var dateStr = inv.job_date ? fmtDate(inv.job_date) : '—';
+
+    html += '<tr>';
+    html += '<td><div class="cust-name">' + esc(inv.customer_name || 'Unknown') + '</div>';
+    if (inv.address) html += '<div class="cust-addr">' + esc(inv.address) + '</div>';
+    html += '</td>';
+    html += '<td style="white-space:nowrap;font-size:12px;color:#555;">' + dateStr + '</td>';
+    html += '<td><span class="job-num">' + esc(inv.invoice_number || '—') + '</span></td>';
+    html += '<td class="amount">' + fmt(total) + '</td>';
+    html += '<td>';
+    html += '<span class="amount" style="color:#16a34a">' + fmt(paid) + '</span>';
+    if (total > 0) {
+      html += '<div class="progress-bar-wrap"><div class="progress-bar" style="width:' + pct + '%;background:' + (isPartial ? '#ca8a04' : '#e5e5e5') + '"></div></div>';
+    }
+    html += '</td>';
+    html += '<td><span class="' + balClass + '">' + fmt(balance) + '</span></td>';
+    html += '<td>' + badge + '</td>';
+    html += '</tr>';
+  });
+
+  tbody.innerHTML = html;
+}
+
+// ── Helpers ───────────────────────────────────────────────
+
+function fmt(cents) {
+  // HCP returns amounts in cents (integers). Convert to dollars.
+  var dollars = (cents || 0) / 100;
+  return '$' + dollars.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function fmtDate(str) {
+  if (!str) return '—';
+  var d = new Date(str);
+  if (isNaN(d)) return str;
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function showToast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(function() { t.classList.remove('show'); }, 3500);
+}
+
+function showError(msg) {
+  var el = document.getElementById('error-banner');
+  el.textContent = '⚠ ' + msg;
+  el.style.display = 'block';
+}
+
+function hideError() {
+  document.getElementById('error-banner').style.display = 'none';
+}
+
+init();
+</script>
+</body>
+</html>
