@@ -261,7 +261,7 @@ async function syncInvoices() {
   hideError();
 
   try {
-    var res = await fetch(SUPABASE_URL + '/functions/v1/hcp-invoices', {
+    var res = await fetch(SUPABASE_URL + '/functions/v1/swift-function', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
