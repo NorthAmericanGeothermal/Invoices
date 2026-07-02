@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NAGeo — Operations</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f4f4f0;color:#1a1a1a;min-height:100vh;}
@@ -416,7 +417,7 @@ tr.confirm-row:last-child td{border-bottom:none;}
 
 <div class="toast" id="toast"></div>
 <!-- Hidden file input for CSV -->
-<input type="file" id="csv-file-input" accept=".csv" style="display:none" onchange="handleCSVFile(this)">
+<input type="file" id="csv-file-input" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleCSVFile(this)">
 
 <script>
 // ══════════════════════════════════════════════════════════
@@ -1169,7 +1170,7 @@ function renderPayablesSection(job) {
     + ' ondragover="event.stopPropagation();handleDragOver(event,\'' + id + '\')"'
     + ' ondragleave="event.stopPropagation();handleDragLeave(event,\'' + id + '\')"'
     + ' ondrop="event.stopPropagation();handleDrop(event,\'' + id + '\')">'
-    + '↑ Drop a CSV file here, or <span style="color:#2563eb;font-weight:500;">click to browse</span>'
+    + '↑ Drop a CSV or Excel file here, or <span style="color:#2563eb;font-weight:500;">click to browse</span>'
     + '</div>';
 
   PAYABLE_CATS.forEach(function(cat) {
@@ -1412,11 +1413,12 @@ function handleDrop(event, jobId) {
   var files = event.dataTransfer ? event.dataTransfer.files : null;
   if (!files || !files[0]) return;
   var file = files[0];
-  if (!file.name.toLowerCase().endsWith('.csv')) { showToast('Please drop a .csv file.'); return; }
+  var name = file.name.toLowerCase();
+  if (!name.endsWith('.csv') && !name.endsWith('.xlsx') && !name.endsWith('.xls')) {
+    showToast('Please drop a .csv or .xlsx file.'); return;
+  }
   csvPendingJobId = jobId;
-  var reader = new FileReader();
-  reader.onload = function(e) { showCSVPreview(e.target.result, jobId); };
-  reader.readAsText(file);
+  readSpreadsheetFile(file, jobId);
 }
 
 function triggerCSVUpload(jobId) {
@@ -1428,9 +1430,33 @@ function triggerCSVUpload(jobId) {
 
 function handleCSVFile(input) {
   if (!input.files || !input.files[0]) return;
+  readSpreadsheetFile(input.files[0], csvPendingJobId);
+}
+
+// Unified reader — handles both CSV (text) and XLSX/XLS (binary via SheetJS)
+function readSpreadsheetFile(file, jobId) {
+  var name = file.name.toLowerCase();
+  var isExcel = name.endsWith('.xlsx') || name.endsWith('.xls');
   var reader = new FileReader();
-  reader.onload = function(e) { showCSVPreview(e.target.result, csvPendingJobId); };
-  reader.readAsText(input.files[0]);
+
+  if (isExcel) {
+    reader.onload = function(e) {
+      try {
+        var data = e.target.result;
+        var workbook = XLSX.read(data, { type: 'binary' });
+        var sheet = workbook.Sheets[workbook.SheetNames[0]];
+        // Convert the first sheet to CSV text, then reuse existing parser
+        var csvText = XLSX.utils.sheet_to_csv(sheet);
+        showCSVPreview(csvText, jobId);
+      } catch(err) {
+        showToast('Could not read Excel file: ' + err.message);
+      }
+    };
+    reader.readAsBinaryString(file);
+  } else {
+    reader.onload = function(e) { showCSVPreview(e.target.result, jobId); };
+    reader.readAsText(file);
+  }
 }
 
 function showCSVPreview(text, jobId) {
