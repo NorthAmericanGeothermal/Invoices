@@ -225,6 +225,11 @@ tr.confirm-row:last-child td{border-bottom:none;}
 .toast{position:fixed;bottom:1.5rem;right:1.5rem;background:#1a1a1a;color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;z-index:300;opacity:0;transition:opacity 0.3s;pointer-events:none;}
 .toast.show{opacity:1;}
 
+/* ── CSV Drop Zone ── */
+.csv-drop-zone{border:1.5px dashed #ddd;border-radius:8px;padding:10px 16px;text-align:center;font-size:12px;color:#aaa;cursor:pointer;transition:border-color 0.15s,background 0.15s,color 0.15s;margin-bottom:12px;user-select:none;}
+.csv-drop-zone:hover{border-color:#2563eb;color:#2563eb;background:#eff6ff;}
+.csv-drop-zone.drag-over{border-color:#2563eb;border-style:solid;color:#2563eb;background:#dbeafe;}
+
 /* ── Loading ── */
 .loading-msg{padding:3rem;text-align:center;color:#aaa;font-size:13px;}
 
@@ -773,6 +778,8 @@ async function syncInstallJobs() {
     }
 
     // Upsert into Supabase (only update HCP fields, leave notes/archived alone)
+    // HCP returns amounts in cents; convert to dollars before storing
+    function cD(n) { var v = n||0; return v > 10000 ? v / 100 : v; }
     var upsertData = hcpJobs.map(function(j) {
       return {
         hcp_job_id: j.hcp_job_id,
@@ -781,9 +788,9 @@ async function syncInstallJobs() {
         address: j.address,
         job_date: j.job_date,
         job_number: j.job_number,
-        hcp_total_amount: j.hcp_total_amount,
-        hcp_amount_paid: j.hcp_amount_paid,
-        hcp_outstanding: j.hcp_outstanding,
+        hcp_total_amount: cD(j.hcp_total_amount),
+        hcp_amount_paid:  cD(j.hcp_amount_paid),
+        hcp_outstanding:  cD(j.hcp_outstanding),
         updated_at: new Date().toISOString()
       };
     });
@@ -991,9 +998,9 @@ function renderReceivablesSection(job) {
   // HCP summary info
   if (job.hcp_total_amount > 0 || job.hcp_outstanding > 0) {
     html += '<div class="hcp-info">HCP Invoice <strong>#' + esc(job.job_number||'—') + '</strong>: ';
-    html += 'Total <strong>' + fmt(job.hcp_total_amount) + '</strong> · ';
-    html += 'Paid <strong style="color:#16a34a">' + fmt(job.hcp_amount_paid) + '</strong> · ';
-    html += 'Outstanding <strong style="color:#dc2626">' + fmt(job.hcp_outstanding) + '</strong>';
+    html += 'Total <strong>' + fmtMoney(job.hcp_total_amount) + '</strong> · ';
+    html += 'Paid <strong style="color:#16a34a">' + fmtMoney(job.hcp_amount_paid) + '</strong> · ';
+    html += 'Outstanding <strong style="color:#dc2626">' + fmtMoney(job.hcp_outstanding) + '</strong>';
     html += '</div>';
   }
 
@@ -1156,10 +1163,14 @@ function renderPayablesSection(job) {
   var sid = id.replace(/-/g,'_');
 
   var html = '<div class="section-block">';
-  html += '<div class="section-hd">';
-  html += '<span class="section-title">Payables — What we owe vendors</span>';
-  html += '<button class="btn-sm-gray" onclick="event.stopPropagation();triggerCSVUpload(\'' + id + '\')">↑ Upload CSV</button>';
-  html += '</div>';
+  html += '<div class="section-hd"><span class="section-title">Payables — What we owe vendors</span></div>';
+  html += '<div class="csv-drop-zone" id="csv-drop-' + sid + '"'
+    + ' onclick="event.stopPropagation();triggerCSVUpload(\'' + id + '\')"'
+    + ' ondragover="event.stopPropagation();handleDragOver(event,\'' + id + '\')"'
+    + ' ondragleave="event.stopPropagation();handleDragLeave(event,\'' + id + '\')"'
+    + ' ondrop="event.stopPropagation();handleDrop(event,\'' + id + '\')">'
+    + '↑ Drop a CSV file here, or <span style="color:#2563eb;font-weight:500;">click to browse</span>'
+    + '</div>';
 
   PAYABLE_CATS.forEach(function(cat) {
     var catKey = CAT_IDS[cat];
@@ -1377,8 +1388,37 @@ function updateJobHeaderStats(jobId) {
 }
 
 // ══════════════════════════════════════════════════════════
-// CSV UPLOAD
+// CSV UPLOAD + DRAG & DROP
 // ══════════════════════════════════════════════════════════
+function handleDragOver(event, jobId) {
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'copy';
+  var sid = jobId.replace(/-/g,'_');
+  var zone = document.getElementById('csv-drop-' + sid);
+  if (zone) zone.classList.add('drag-over');
+}
+
+function handleDragLeave(event, jobId) {
+  var sid = jobId.replace(/-/g,'_');
+  var zone = document.getElementById('csv-drop-' + sid);
+  if (zone) zone.classList.remove('drag-over');
+}
+
+function handleDrop(event, jobId) {
+  event.preventDefault();
+  var sid = jobId.replace(/-/g,'_');
+  var zone = document.getElementById('csv-drop-' + sid);
+  if (zone) zone.classList.remove('drag-over');
+  var files = event.dataTransfer ? event.dataTransfer.files : null;
+  if (!files || !files[0]) return;
+  var file = files[0];
+  if (!file.name.toLowerCase().endsWith('.csv')) { showToast('Please drop a .csv file.'); return; }
+  csvPendingJobId = jobId;
+  var reader = new FileReader();
+  reader.onload = function(e) { showCSVPreview(e.target.result, jobId); };
+  reader.readAsText(file);
+}
+
 function triggerCSVUpload(jobId) {
   csvPendingJobId = jobId;
   var inp = document.getElementById('csv-file-input');
