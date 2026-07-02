@@ -45,6 +45,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .filter-bar{display:flex;gap:8px;align-items:center;margin-bottom:1rem;flex-wrap:wrap;}
 .fbtn{padding:6px 14px;font-size:13px;border-radius:8px;border:0.5px solid #ddd;background:#fff;color:#888;cursor:pointer;}
 .fbtn.active{background:#f4f4f0;color:#1a1a1a;font-weight:500;border-color:#bbb;}
+.hidden-pill{font-size:12px;padding:5px 12px;border-radius:8px;border:0.5px solid #ddd;background:#fff;color:#888;cursor:pointer;display:none;}
+.hidden-pill.visible{display:inline-flex;align-items:center;gap:5px;}
+.hidden-pill:hover{background:#f4f4f0;}
 .search-input{margin-left:auto;font-size:12px;padding:6px 12px;border:0.5px solid #ddd;border-radius:8px;background:#f9f9f7;font-family:inherit;width:220px;}
 .search-input:focus{outline:none;border-color:#2563eb;}
 .sort-select{font-size:12px;padding:6px 10px;border:0.5px solid #ddd;border-radius:8px;background:#fff;font-family:inherit;color:#555;cursor:pointer;}
@@ -55,10 +58,12 @@ table{width:100%;border-collapse:collapse;font-size:13px;}
 thead tr{border-bottom:0.5px solid #e5e5e5;}
 th{padding:10px 14px;text-align:left;color:#888;font-weight:400;white-space:nowrap;font-size:11px;text-transform:uppercase;letter-spacing:0.4px;cursor:pointer;user-select:none;}
 th:hover{color:#555;}
-th .sort-arrow{font-size:10px;margin-left:3px;color:#bbb;}
+th.no-sort{cursor:default;}th.no-sort:hover{color:#888;}
 td{padding:10px 14px;border-bottom:0.5px solid #f0f0f0;vertical-align:middle;}
 tr:last-child td{border-bottom:none;}
-tr:hover td{background:#fafaf8;}
+tr.normal-row:hover td{background:#fafaf8;}
+tr.confirm-row td{background:#fffbeb;border-bottom:0.5px solid #fde68a;}
+tr.confirm-row:last-child td{border-bottom:none;}
 .cust-name{font-weight:500;color:#1a1a1a;}
 .cust-addr{font-size:11px;color:#888;margin-top:2px;}
 .job-num{font-size:11px;color:#888;}
@@ -67,12 +72,35 @@ tr:hover td{background:#fafaf8;}
 .bal-orange{color:#ca8a04;}
 .badge-unpaid{font-size:10px;padding:2px 8px;border-radius:5px;background:#fee2e2;color:#dc2626;white-space:nowrap;}
 .badge-partial{font-size:10px;padding:2px 8px;border-radius:5px;background:#fef9c3;color:#ca8a04;white-space:nowrap;}
-.badge-paid{font-size:10px;padding:2px 8px;border-radius:5px;background:#dcfce7;color:#16a34a;white-space:nowrap;}
 .badge-noinvoice{font-size:10px;padding:2px 8px;border-radius:5px;background:#ede9fe;color:#7c3aed;white-space:nowrap;}
 .progress-bar-wrap{width:80px;height:6px;background:#f0f0f0;border-radius:3px;margin-top:4px;}
-.progress-bar{height:6px;border-radius:3px;background:#2563eb;}
+.progress-bar{height:6px;border-radius:3px;}
 .empty{padding:3rem;text-align:center;color:#aaa;font-size:13px;}
 .error-banner{background:#fee2e2;color:#dc2626;border-radius:8px;padding:10px 16px;font-size:13px;margin-bottom:1rem;}
+
+/* ── Hide button ── */
+.hide-btn{font-size:11px;padding:3px 10px;border:0.5px solid #ddd;border-radius:6px;background:#fff;color:#aaa;cursor:pointer;white-space:nowrap;font-family:inherit;}
+.hide-btn:hover{border-color:#dc2626;color:#dc2626;background:#fff5f5;}
+.confirm-msg{font-size:12px;color:#92400e;font-weight:500;}
+.confirm-yes{font-size:11px;padding:3px 10px;border:none;border-radius:6px;background:#dc2626;color:#fff;cursor:pointer;font-family:inherit;margin-right:4px;}
+.confirm-no{font-size:11px;padding:3px 10px;border:0.5px solid #ddd;border-radius:6px;background:#fff;color:#888;cursor:pointer;font-family:inherit;}
+
+/* ── Hidden invoices modal ── */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:200;align-items:center;justify-content:center;}
+.modal-bg.open{display:flex;}
+.modal{background:#fff;border-radius:14px;padding:1.5rem;width:560px;max-width:95vw;max-height:80vh;display:flex;flex-direction:column;}
+.modal-title{font-size:16px;font-weight:600;margin-bottom:4px;}
+.modal-sub{font-size:12px;color:#888;margin-bottom:1.25rem;}
+.modal-list{overflow-y:auto;flex:1;border:0.5px solid #e5e5e5;border-radius:8px;}
+.modal-item{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:0.5px solid #f0f0f0;}
+.modal-item:last-child{border-bottom:none;}
+.modal-item-name{flex:1;font-size:13px;font-weight:500;}
+.modal-item-detail{font-size:11px;color:#888;margin-top:1px;}
+.restore-btn{font-size:11px;padding:3px 10px;border:0.5px solid #2563eb;border-radius:6px;background:#fff;color:#2563eb;cursor:pointer;font-family:inherit;white-space:nowrap;}
+.restore-btn:hover{background:#eff6ff;}
+.modal-empty{padding:2rem;text-align:center;color:#aaa;font-size:13px;}
+.modal-footer{display:flex;justify-content:flex-end;margin-top:1rem;}
+.modal-close{padding:8px 18px;border:0.5px solid #ddd;border-radius:8px;background:#fff;cursor:pointer;font-size:13px;font-family:inherit;color:#555;}
 
 /* ── Toast ── */
 .toast{position:fixed;bottom:1.5rem;right:1.5rem;background:#1a1a1a;color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;z-index:300;opacity:0;transition:opacity 0.3s;pointer-events:none;}
@@ -145,6 +173,7 @@ tr:hover td{background:#fafaf8;}
       <button class="fbtn active" id="f-all" onclick="setFilter('all')">All outstanding</button>
       <button class="fbtn" id="f-unpaid" onclick="setFilter('unpaid')">Unpaid only</button>
       <button class="fbtn" id="f-partial" onclick="setFilter('partial')">Partial only</button>
+      <button class="hidden-pill" id="hidden-pill" onclick="openHiddenModal()">&#128683; <span id="hidden-count">0</span> hidden</button>
       <select class="sort-select" id="sort-select" onchange="setSort(this.value)">
         <option value="balance-desc">Highest balance first</option>
         <option value="balance-asc">Lowest balance first</option>
@@ -159,19 +188,32 @@ tr:hover td{background:#fafaf8;}
       <table>
         <thead>
           <tr>
-            <th onclick="setSort('name-asc')">Customer <span class="sort-arrow" id="arr-name"></span></th>
-            <th onclick="setSort('date-desc')">Job date <span class="sort-arrow" id="arr-date"></span></th>
-            <th>Invoice #</th>
-            <th onclick="setSort('total-desc')">Total <span class="sort-arrow" id="arr-total"></span></th>
-            <th>Paid</th>
-            <th onclick="setSort('balance-desc')">Balance due <span class="sort-arrow" id="arr-balance"></span></th>
-            <th>Status</th>
+            <th onclick="setSort('name-asc')">Customer</th>
+            <th onclick="setSort('date-desc')">Job date</th>
+            <th class="no-sort">Invoice #</th>
+            <th onclick="setSort('total-desc')">Total</th>
+            <th class="no-sort">Paid</th>
+            <th onclick="setSort('balance-desc')">Balance due</th>
+            <th class="no-sort">Status</th>
+            <th class="no-sort"></th>
           </tr>
         </thead>
         <tbody id="invoice-tbody">
-          <tr><td colspan="7" class="empty">Click "Sync HCP" to load outstanding invoices.</td></tr>
+          <tr><td colspan="8" class="empty">Click "Sync HCP" to load outstanding invoices.</td></tr>
         </tbody>
       </table>
+    </div>
+  </div>
+</div>
+
+<!-- Hidden invoices modal -->
+<div class="modal-bg" id="hidden-modal">
+  <div class="modal">
+    <div class="modal-title">Hidden invoices</div>
+    <div class="modal-sub">These are hidden from the main list. Restore any to bring them back.</div>
+    <div class="modal-list" id="hidden-modal-list"></div>
+    <div class="modal-footer">
+      <button class="modal-close" onclick="closeHiddenModal()">Close</button>
     </div>
   </div>
 </div>
@@ -185,14 +227,30 @@ var sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 var currentUser = null;
 var users = [];
-var invoices = []; // all outstanding invoices from last sync
+var invoices = [];
 var filterMode = 'all';
 var sortMode = 'balance-desc';
 var syncing = false;
+var pendingHideId = null; // which row is in "confirm" state
+
+// ── Ignored IDs (persisted in localStorage) ──────────────
+var ignoredIds = new Set();
+
+function loadIgnored() {
+  try {
+    var raw = localStorage.getItem('hcpinv_ignored');
+    if (raw) ignoredIds = new Set(JSON.parse(raw));
+  } catch(e) { ignoredIds = new Set(); }
+}
+
+function saveIgnored() {
+  localStorage.setItem('hcpinv_ignored', JSON.stringify(Array.from(ignoredIds)));
+}
 
 // ── Auth ──────────────────────────────────────────────────
 
 async function init() {
+  loadIgnored();
   var saved = localStorage.getItem('hcpinv_user');
   if (saved) { currentUser = JSON.parse(saved); showApp(); return; }
   var res = await sb.from('users').select('*').order('name');
@@ -238,8 +296,6 @@ function showApp() {
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app').style.display = 'block';
   document.getElementById('topbar-name').textContent = currentUser.name;
-
-  // restore last sync from localStorage
   var cached = localStorage.getItem('hcpinv_data');
   if (cached) {
     try {
@@ -256,6 +312,7 @@ function showApp() {
 async function syncInvoices() {
   if (syncing) return;
   syncing = true;
+  pendingHideId = null;
   var btn = document.getElementById('sync-btn');
   btn.disabled = true;
   btn.innerHTML = '<span class="sync-spin">&#8635;</span> Syncing...';
@@ -285,7 +342,8 @@ async function syncInvoices() {
     localStorage.setItem('hcpinv_data', JSON.stringify({ invoices: invoices, syncedAt: now }));
     updateLastSynced(now);
     renderAll();
-    showToast('Synced — ' + invoices.length + ' outstanding invoice' + (invoices.length !== 1 ? 's' : '') + ' found.');
+    var visible = invoices.filter(function(inv){ return !ignoredIds.has(inv.hcp_job_id); }).length;
+    showToast('Synced — ' + visible + ' outstanding invoice' + (visible !== 1 ? 's' : '') + ' found.');
   } catch(e) {
     showError(e.message || 'Sync failed. Check the edge function is deployed.');
   }
@@ -301,6 +359,70 @@ function updateLastSynced(isoStr) {
   var opts = { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true };
   document.getElementById('last-synced').textContent = 'Last synced: ' + d.toLocaleString('en-US', opts);
 }
+
+// ── Hide / Ignore ─────────────────────────────────────────
+
+function startHide(jobId) {
+  // If another row is pending, cancel it first
+  if (pendingHideId && pendingHideId !== jobId) cancelHide();
+  pendingHideId = jobId;
+  renderTable();
+}
+
+function cancelHide() {
+  pendingHideId = null;
+  renderTable();
+}
+
+function confirmHide(jobId) {
+  ignoredIds.add(jobId);
+  saveIgnored();
+  pendingHideId = null;
+  renderAll();
+  showToast('Invoice hidden. Use "hidden" button to restore it.');
+}
+
+function restoreInvoice(jobId) {
+  ignoredIds.delete(jobId);
+  saveIgnored();
+  renderAll();
+  renderHiddenModal();
+  showToast('Invoice restored.');
+}
+
+// ── Hidden modal ──────────────────────────────────────────
+
+function openHiddenModal() {
+  renderHiddenModal();
+  document.getElementById('hidden-modal').classList.add('open');
+}
+
+function closeHiddenModal() {
+  document.getElementById('hidden-modal').classList.remove('open');
+}
+
+function renderHiddenModal() {
+  var hidden = invoices.filter(function(inv){ return ignoredIds.has(inv.hcp_job_id); });
+  var el = document.getElementById('hidden-modal-list');
+  if (!hidden.length) {
+    el.innerHTML = '<div class="modal-empty">No hidden invoices.</div>';
+    return;
+  }
+  var html = '';
+  hidden.forEach(function(inv) {
+    html += '<div class="modal-item">';
+    html += '<div><div class="modal-item-name">' + esc(inv.customer_name || 'Unknown') + '</div>';
+    html += '<div class="modal-item-detail">' + (inv.invoice_number ? 'Invoice #' + inv.invoice_number + ' · ' : '') + fmt(inv.outstanding_balance) + ' outstanding</div></div>';
+    html += '<button class="restore-btn" onclick="restoreInvoice(\'' + esc(inv.hcp_job_id) + '\')">Restore</button>';
+    html += '</div>';
+  });
+  el.innerHTML = html;
+}
+
+// Close modal on backdrop click
+document.getElementById('hidden-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeHiddenModal();
+});
 
 // ── Filters & Sort ────────────────────────────────────────
 
@@ -321,6 +443,7 @@ function setSort(mode) {
 function getFiltered() {
   var q = (document.getElementById('search-input').value || '').toLowerCase();
   return invoices.filter(function(inv) {
+    if (ignoredIds.has(inv.hcp_job_id)) return false;
     if (filterMode === 'unpaid' && inv.amount_paid > 0) return false;
     if (filterMode === 'partial' && inv.amount_paid <= 0) return false;
     if (q) {
@@ -349,27 +472,38 @@ function getSorted(list) {
 
 function renderAll() {
   updateStats();
+  updateHiddenPill();
   renderTable();
 }
 
 function updateStats() {
-  var totalBalance = invoices.reduce(function(s, inv) { return s + (inv.outstanding_balance || 0); }, 0);
-  var unpaid = invoices.filter(function(inv) { return inv.amount_paid <= 0; }).length;
-  var partial = invoices.filter(function(inv) { return inv.amount_paid > 0; }).length;
+  var visible = invoices.filter(function(inv){ return !ignoredIds.has(inv.hcp_job_id); });
+  var totalBalance = visible.reduce(function(s, inv) { return s + (inv.outstanding_balance || 0); }, 0);
+  var unpaid  = visible.filter(function(inv) { return inv.amount_paid <= 0; }).length;
+  var partial = visible.filter(function(inv) { return inv.amount_paid > 0; }).length;
 
   document.getElementById('s-total').textContent = fmt(totalBalance);
-  document.getElementById('s-count').textContent = invoices.length;
+  document.getElementById('s-count').textContent = visible.length;
   document.getElementById('s-unpaid').textContent = unpaid;
   document.getElementById('s-partial').textContent = partial;
+}
+
+function updateHiddenPill() {
+  var hiddenCount = invoices.filter(function(inv){ return ignoredIds.has(inv.hcp_job_id); }).length;
+  var pill = document.getElementById('hidden-pill');
+  document.getElementById('hidden-count').textContent = hiddenCount;
+  pill.className = 'hidden-pill' + (hiddenCount > 0 ? ' visible' : '');
 }
 
 function renderTable() {
   var list = getSorted(getFiltered());
   var tbody = document.getElementById('invoice-tbody');
   if (!list.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="empty">' +
-      (invoices.length ? 'No invoices match your filter.' : 'Click "Sync HCP" to load outstanding invoices.') +
-      '</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">' +
+      (invoices.filter(function(i){ return !ignoredIds.has(i.hcp_job_id); }).length === 0 && invoices.length > 0
+        ? 'All invoices are hidden. Use the hidden button to restore them.'
+        : invoices.length ? 'No invoices match your filter.' : 'Click "Sync HCP" to load outstanding invoices.')
+      + '</td></tr>';
     return;
   }
 
@@ -378,8 +512,9 @@ function renderTable() {
     var total   = inv.total_amount || 0;
     var paid    = inv.amount_paid || 0;
     var balance = inv.outstanding_balance || 0;
-    var isPartial = paid > 0 && balance < total;
-    var noInvoice = inv.no_invoice_yet;
+    var isPartial  = paid > 0 && balance < total;
+    var noInvoice  = inv.no_invoice_yet;
+    var isPending  = pendingHideId === inv.hcp_job_id;
     var pct = total > 0 ? Math.round((paid / total) * 100) : 0;
     var balClass = noInvoice ? 'amount' : isPartial ? 'amount bal-orange' : 'amount bal-red';
     var badge = noInvoice
@@ -388,23 +523,37 @@ function renderTable() {
         ? '<span class="badge-partial">Partial</span>'
         : '<span class="badge-unpaid">Unpaid</span>';
     var dateStr = inv.job_date ? fmtDate(inv.job_date) : '—';
+    var safeId = esc(inv.hcp_job_id);
 
-    html += '<tr>';
-    html += '<td><div class="cust-name">' + esc(inv.customer_name || 'Unknown') + '</div>';
-    if (inv.address) html += '<div class="cust-addr">' + esc(inv.address) + '</div>';
-    html += '</td>';
-    html += '<td style="white-space:nowrap;font-size:12px;color:#555;">' + dateStr + '</td>';
-    html += '<td><span class="job-num">' + esc(inv.invoice_number || '—') + '</span></td>';
-    html += '<td class="amount">' + fmt(total) + '</td>';
-    html += '<td>';
-    html += '<span class="amount" style="color:#16a34a">' + fmt(paid) + '</span>';
-    if (total > 0) {
-      html += '<div class="progress-bar-wrap"><div class="progress-bar" style="width:' + pct + '%;background:' + (isPartial ? '#ca8a04' : '#e5e5e5') + '"></div></div>';
+    if (isPending) {
+      // Confirmation row
+      html += '<tr class="confirm-row">';
+      html += '<td colspan="7"><span class="confirm-msg">&#9888; Hide "' + esc(inv.customer_name) + '" from this list? It won\'t appear on future syncs.</span></td>';
+      html += '<td style="white-space:nowrap;">';
+      html += '<button class="confirm-yes" onclick="confirmHide(\'' + safeId + '\')">Yes, hide it</button>';
+      html += '<button class="confirm-no" onclick="cancelHide()">Cancel</button>';
+      html += '</td>';
+      html += '</tr>';
+    } else {
+      // Normal row
+      html += '<tr class="normal-row">';
+      html += '<td><div class="cust-name">' + esc(inv.customer_name || 'Unknown') + '</div>';
+      if (inv.address) html += '<div class="cust-addr">' + esc(inv.address) + '</div>';
+      html += '</td>';
+      html += '<td style="white-space:nowrap;font-size:12px;color:#555;">' + dateStr + '</td>';
+      html += '<td><span class="job-num">' + esc(inv.invoice_number || '—') + '</span></td>';
+      html += '<td class="amount">' + fmt(total) + '</td>';
+      html += '<td>';
+      html += '<span class="amount" style="color:#16a34a">' + fmt(paid) + '</span>';
+      if (total > 0 && isPartial) {
+        html += '<div class="progress-bar-wrap"><div class="progress-bar" style="width:' + pct + '%;background:#ca8a04"></div></div>';
+      }
+      html += '</td>';
+      html += '<td><span class="' + balClass + '">' + fmt(balance) + '</span></td>';
+      html += '<td>' + badge + '</td>';
+      html += '<td><button class="hide-btn" onclick="startHide(\'' + safeId + '\')">Hide</button></td>';
+      html += '</tr>';
     }
-    html += '</td>';
-    html += '<td><span class="' + balClass + '">' + fmt(balance) + '</span></td>';
-    html += '<td>' + badge + '</td>';
-    html += '</tr>';
   });
 
   tbody.innerHTML = html;
@@ -412,9 +561,11 @@ function renderTable() {
 
 // ── Helpers ───────────────────────────────────────────────
 
-function fmt(cents) {
-  // HCP returns amounts in cents (integers). Convert to dollars.
-  var dollars = (cents || 0) / 100;
+function fmt(val) {
+  var n = Number(val) || 0;
+  // If values look like cents (large integers), convert; if already dollars, use as-is.
+  // HCP typically returns cents for invoice amounts.
+  var dollars = n > 1000 ? n / 100 : n;
   return '$' + dollars.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
