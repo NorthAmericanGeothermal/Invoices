@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>HCP Outstanding Invoices</title>
+<title>NAGeo — Operations</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -22,17 +22,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 /* ── App shell ── */
 #app{display:none;}
-.topbar{background:#fff;border-bottom:0.5px solid #e5e5e5;padding:0 1.5rem;display:flex;align-items:center;gap:1rem;height:52px;position:sticky;top:0;z-index:100;}
-.topbar-logo{font-size:15px;font-weight:600;flex:1;}.topbar-logo span{color:#2563eb;}
-.topbar-user{font-size:12px;color:#888;}.topbar-user strong{color:#1a1a1a;}
+.topbar{background:#fff;border-bottom:0.5px solid #e5e5e5;padding:0 1.25rem;display:flex;align-items:center;height:52px;position:sticky;top:0;z-index:100;gap:0;}
+.topbar-logo{font-size:15px;font-weight:600;padding-right:20px;flex-shrink:0;}.topbar-logo span{color:#2563eb;}
+.tab-nav{display:flex;align-items:stretch;height:52px;flex:1;}
+.tab-btn{padding:0 18px;height:52px;border:none;background:transparent;font-size:13px;color:#888;cursor:pointer;border-bottom:2px solid transparent;font-family:inherit;white-space:nowrap;}
+.tab-btn:hover{color:#1a1a1a;}
+.tab-btn.active{color:#2563eb;border-bottom-color:#2563eb;font-weight:500;}
+.topbar-right{display:flex;align-items:center;gap:8px;margin-left:auto;flex-shrink:0;}
+.topbar-user{font-size:12px;color:#888;white-space:nowrap;}.topbar-user strong{color:#1a1a1a;}
 .logout-btn{font-size:12px;padding:4px 10px;border:0.5px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;color:#888;}
-.sync-btn{font-size:12px;padding:5px 12px;border:0.5px solid #2563eb;border-radius:6px;background:#fff;cursor:pointer;color:#2563eb;display:flex;align-items:center;gap:5px;}
+.sync-btn{font-size:12px;padding:5px 12px;border:0.5px solid #2563eb;border-radius:6px;background:#fff;cursor:pointer;color:#2563eb;display:flex;align-items:center;gap:5px;white-space:nowrap;}
 .sync-btn:hover{background:#eff6ff;}
 .sync-btn:disabled{opacity:0.5;cursor:default;}
 .sync-spin{display:inline-block;animation:spin 1s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg);}}
-.last-synced{font-size:11px;color:#aaa;}
-.main{max-width:1100px;margin:0 auto;padding:1.5rem;}
+.last-synced{font-size:11px;color:#aaa;white-space:nowrap;}
+.main{max-width:1120px;margin:0 auto;padding:1.5rem;}
 
 /* ── Stats ── */
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:1.5rem;}
@@ -49,11 +54,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .hidden-pill{font-size:12px;padding:5px 12px;border-radius:8px;border:0.5px solid #ddd;background:#fff;color:#888;cursor:pointer;display:none;}
 .hidden-pill.visible{display:inline-flex;align-items:center;gap:5px;}
 .hidden-pill:hover{background:#f4f4f0;}
-.search-input{margin-left:auto;font-size:12px;padding:6px 12px;border:0.5px solid #ddd;border-radius:8px;background:#f9f9f7;font-family:inherit;width:220px;}
+.search-input{font-size:12px;padding:6px 12px;border:0.5px solid #ddd;border-radius:8px;background:#f9f9f7;font-family:inherit;width:220px;}
 .search-input:focus{outline:none;border-color:#2563eb;}
 .sort-select{font-size:12px;padding:6px 10px;border:0.5px solid #ddd;border-radius:8px;background:#fff;font-family:inherit;color:#555;cursor:pointer;}
 
-/* ── Table ── */
+/* ── Invoice Table ── */
 .table-wrap{background:#fff;border-radius:12px;border:0.5px solid #e5e5e5;overflow:hidden;overflow-x:auto;}
 table{width:100%;border-collapse:collapse;font-size:13px;}
 thead tr{border-bottom:0.5px solid #e5e5e5;}
@@ -78,18 +83,123 @@ tr.confirm-row:last-child td{border-bottom:none;}
 .progress-bar{height:6px;border-radius:3px;}
 .empty{padding:3rem;text-align:center;color:#aaa;font-size:13px;}
 .error-banner{background:#fee2e2;color:#dc2626;border-radius:8px;padding:10px 16px;font-size:13px;margin-bottom:1rem;}
-
-/* ── Hide button ── */
 .hide-btn{font-size:11px;padding:3px 10px;border:0.5px solid #ddd;border-radius:6px;background:#fff;color:#aaa;cursor:pointer;white-space:nowrap;font-family:inherit;}
 .hide-btn:hover{border-color:#dc2626;color:#dc2626;background:#fff5f5;}
 .confirm-msg{font-size:12px;color:#92400e;font-weight:500;}
 .confirm-yes{font-size:11px;padding:3px 10px;border:none;border-radius:6px;background:#dc2626;color:#fff;cursor:pointer;font-family:inherit;margin-right:4px;}
 .confirm-no{font-size:11px;padding:3px 10px;border:0.5px solid #ddd;border-radius:6px;background:#fff;color:#888;cursor:pointer;font-family:inherit;}
 
-/* ── Hidden invoices modal ── */
-.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:200;align-items:center;justify-content:center;}
+/* ── Install Jobs ── */
+.install-header{display:flex;align-items:center;gap:10px;margin-bottom:1.25rem;flex-wrap:wrap;}
+.install-search{font-size:12px;padding:6px 12px;border:0.5px solid #ddd;border-radius:8px;background:#f9f9f7;font-family:inherit;width:220px;margin-left:auto;}
+.install-search:focus{outline:none;border-color:#2563eb;}
+
+/* ── Job Card ── */
+.job-card{background:#fff;border:0.5px solid #e5e5e5;border-radius:12px;margin-bottom:10px;overflow:hidden;}
+.job-card:hover{box-shadow:0 2px 8px rgba(0,0,0,0.06);}
+.job-hd{display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer;user-select:none;}
+.job-hd:hover{background:#fafaf8;}
+.job-avatar{width:36px;height:36px;border-radius:50%;background:#e0e7ff;color:#3730a3;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.job-info{flex:1;min-width:0;}
+.job-name{font-size:14px;font-weight:500;color:#1a1a1a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.job-addr{font-size:11px;color:#888;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.job-num-chip{font-size:11px;padding:2px 8px;border-radius:5px;background:#f1f5f9;color:#64748b;white-space:nowrap;flex-shrink:0;}
+.job-fin{display:flex;gap:18px;align-items:center;flex-shrink:0;}
+.job-fin-item{text-align:right;}
+.job-fin-label{font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:0.3px;}
+.job-fin-val{font-size:13px;font-weight:600;}
+.fin-recv{color:#2563eb;}
+.fin-pay{color:#dc2626;}
+.fin-net-pos{color:#16a34a;}
+.fin-net-neg{color:#dc2626;}
+.job-chevron{font-size:14px;color:#bbb;flex-shrink:0;transition:transform 0.2s;}
+.job-chevron.open{transform:rotate(90deg);}
+.arc-btn{font-size:11px;padding:3px 10px;border:0.5px solid #ddd;border-radius:6px;background:#fff;color:#aaa;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;}
+.arc-btn:hover{border-color:#dc2626;color:#dc2626;background:#fff5f5;}
+.arc-confirm{font-size:11px;color:#92400e;font-weight:500;flex-shrink:0;}
+.arc-yes{font-size:11px;padding:3px 10px;border:none;border-radius:6px;background:#dc2626;color:#fff;cursor:pointer;font-family:inherit;margin-right:4px;}
+.arc-no{font-size:11px;padding:3px 10px;border:0.5px solid #ddd;border-radius:6px;background:#fff;color:#888;cursor:pointer;font-family:inherit;}
+
+/* ── Job Body ── */
+.job-body{border-top:0.5px solid #f0f0f0;display:none;}
+.section-block{padding:16px;border-bottom:0.5px solid #f0f0f0;}
+.section-block:last-child{border-bottom:none;}
+.section-hd{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;}
+.section-title{font-size:13px;font-weight:600;color:#1a1a1a;}
+.section-sub{font-size:11px;color:#888;}
+.hcp-info{background:#f8faff;border:0.5px solid #dbeafe;border-radius:8px;padding:9px 13px;font-size:12px;color:#555;margin-bottom:12px;}
+.hcp-info strong{color:#1d4ed8;}
+.btn-sm{font-size:11px;padding:4px 12px;border:0.5px solid #2563eb;border-radius:6px;background:#fff;color:#2563eb;cursor:pointer;font-family:inherit;white-space:nowrap;}
+.btn-sm:hover{background:#eff6ff;}
+.btn-sm-g{font-size:11px;padding:4px 12px;border:0.5px solid #16a34a;border-radius:6px;background:#fff;color:#16a34a;cursor:pointer;font-family:inherit;white-space:nowrap;}
+.btn-sm-g:hover{background:#f0fdf4;}
+.btn-sm-gray{font-size:11px;padding:4px 12px;border:0.5px solid #ddd;border-radius:6px;background:#fff;color:#888;cursor:pointer;font-family:inherit;white-space:nowrap;}
+.btn-sm-gray:hover{background:#f9f9f7;}
+
+/* ── Milestone table ── */
+.ms-table-wrap{overflow-x:auto;margin-bottom:8px;}
+.ms-table{width:100%;border-collapse:collapse;font-size:12px;}
+.ms-table th{padding:7px 8px;text-align:left;color:#888;font-weight:400;font-size:10px;text-transform:uppercase;letter-spacing:0.3px;border-bottom:0.5px solid #e5e5e5;white-space:nowrap;}
+.ms-table td{padding:5px 6px;border-bottom:0.5px solid #f5f5f5;vertical-align:middle;}
+.ms-table tr:last-child td{border-bottom:none;}
+.ms-table tr.ms-row-paid{background:#f0fdf4;}
+.ms-table tfoot td{font-size:11px;font-weight:500;color:#555;border-top:0.5px solid #e5e5e5;padding:7px 8px;background:#fafaf8;}
+.recv-total-row{display:flex;gap:20px;padding:8px 10px;background:#f0fdf4;border-radius:6px;font-size:12px;margin-top:8px;}
+.recv-total-item{display:flex;gap:5px;align-items:center;}
+.recv-total-label{color:#888;}
+.recv-total-val{font-weight:600;}
+
+/* ── Payable categories ── */
+.cat-block{border:0.5px solid #e5e5e5;border-radius:8px;margin-bottom:8px;overflow:hidden;}
+.cat-hd{display:flex;align-items:center;gap:10px;padding:9px 13px;cursor:pointer;user-select:none;}
+.cat-hd:hover{background:rgba(0,0,0,0.02);}
+.cat-toggle{font-size:11px;color:#aaa;transition:transform 0.2s;flex-shrink:0;}
+.cat-toggle.open{transform:rotate(90deg);}
+.cat-name{font-size:12px;font-weight:600;color:#1a1a1a;flex:1;}
+.cat-stats{font-size:11px;color:#888;}
+.cat-body{border-top:0.5px solid #f0f0f0;display:none;}
+.cat-tbl-wrap{overflow-x:auto;}
+.cat-table{width:100%;border-collapse:collapse;font-size:12px;}
+.cat-table th{padding:7px 8px;text-align:left;color:#888;font-weight:400;font-size:10px;text-transform:uppercase;letter-spacing:0.3px;border-bottom:0.5px solid #e5e5e5;white-space:nowrap;}
+.cat-table td{padding:4px 6px;border-bottom:0.5px solid #f5f5f5;vertical-align:middle;}
+.cat-table tr:last-child td{border-bottom:none;}
+.cat-table tr.pay-paid-row{background:#f0fdf4;opacity:0.85;}
+.cat-add-row{padding:8px 13px;}
+
+/* ── Cell inputs ── */
+.ci{border:none;background:transparent;font-family:inherit;font-size:12px;color:#1a1a1a;padding:2px 4px;border-radius:4px;min-width:60px;}
+.ci:focus{outline:none;background:#f0f7ff;border:0.5px solid #93c5fd;}
+.ci-num{text-align:right;width:80px;}
+.ci-wide{width:100%;min-width:120px;}
+.ci-notes{width:100%;min-width:100px;}
+.ci-date{width:110px;}
+.ci-select{font-family:inherit;font-size:12px;border:none;background:transparent;color:#1a1a1a;padding:2px;border-radius:4px;cursor:pointer;}
+.ci-select:focus{outline:none;background:#f0f7ff;}
+.cell-outs{font-size:12px;font-weight:500;color:#dc2626;text-align:right;padding:4px 8px;white-space:nowrap;}
+.cell-outs.paid{color:#16a34a;}
+.paid-chk{width:15px;height:15px;cursor:pointer;accent-color:#16a34a;}
+.del-btn{font-size:10px;padding:2px 6px;border:none;background:transparent;color:#ddd;cursor:pointer;border-radius:4px;}
+.del-btn:hover{background:#fee2e2;color:#dc2626;}
+
+/* ── Activity log ── */
+.activity-section{padding:14px 16px;background:#fafaf8;}
+.activity-title{font-size:10px;font-weight:600;color:#aaa;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;}
+.activity-list{display:flex;flex-direction:column;gap:5px;max-height:160px;overflow-y:auto;}
+.activity-entry{font-size:11px;color:#555;display:flex;gap:6px;align-items:baseline;flex-wrap:wrap;}
+.act-who{font-weight:600;color:#1a1a1a;}
+.act-when{color:#bbb;font-size:10px;margin-left:auto;white-space:nowrap;}
+.act-empty{font-size:11px;color:#ccc;padding:4px 0;}
+
+/* ── Archive tab ── */
+.archive-header{display:flex;align-items:center;gap:10px;margin-bottom:1.25rem;}
+.unarchive-btn{font-size:11px;padding:3px 10px;border:0.5px solid #2563eb;border-radius:6px;background:#fff;color:#2563eb;cursor:pointer;font-family:inherit;white-space:nowrap;}
+.unarchive-btn:hover{background:#eff6ff;}
+.arch-empty{padding:3rem;text-align:center;color:#aaa;font-size:13px;}
+
+/* ── Modal ── */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;align-items:center;justify-content:center;}
 .modal-bg.open{display:flex;}
-.modal{background:#fff;border-radius:14px;padding:1.5rem;width:560px;max-width:95vw;max-height:80vh;display:flex;flex-direction:column;}
+.modal{background:#fff;border-radius:14px;padding:1.5rem;width:560px;max-width:95vw;max-height:82vh;display:flex;flex-direction:column;}
 .modal-title{font-size:16px;font-weight:600;margin-bottom:4px;}
 .modal-sub{font-size:12px;color:#888;margin-bottom:1.25rem;}
 .modal-list{overflow-y:auto;flex:1;border:0.5px solid #e5e5e5;border-radius:8px;}
@@ -100,53 +210,75 @@ tr.confirm-row:last-child td{border-bottom:none;}
 .restore-btn{font-size:11px;padding:3px 10px;border:0.5px solid #2563eb;border-radius:6px;background:#fff;color:#2563eb;cursor:pointer;font-family:inherit;white-space:nowrap;}
 .restore-btn:hover{background:#eff6ff;}
 .modal-empty{padding:2rem;text-align:center;color:#aaa;font-size:13px;}
-.modal-footer{display:flex;justify-content:flex-end;margin-top:1rem;}
+.modal-footer{display:flex;justify-content:flex-end;gap:8px;margin-top:1rem;}
 .modal-close{padding:8px 18px;border:0.5px solid #ddd;border-radius:8px;background:#fff;cursor:pointer;font-size:13px;font-family:inherit;color:#555;}
+.modal-btn-primary{padding:8px 18px;border:none;border-radius:8px;background:#2563eb;color:#fff;cursor:pointer;font-size:13px;font-family:inherit;}
+.modal-btn-primary:hover{background:#1d4ed8;}
+.csv-preview-list{max-height:260px;overflow-y:auto;border:0.5px solid #e5e5e5;border-radius:8px;margin-bottom:4px;font-size:12px;}
+.csv-row{display:flex;gap:10px;padding:7px 12px;border-bottom:0.5px solid #f5f5f5;align-items:center;}
+.csv-row:last-child{border-bottom:none;}
+.csv-cat{font-size:10px;padding:2px 7px;border-radius:4px;background:#e0e7ff;color:#3730a3;white-space:nowrap;flex-shrink:0;}
+.csv-vendor{flex:1;font-weight:500;}
+.csv-amt{color:#dc2626;font-weight:500;white-space:nowrap;}
 
 /* ── Toast ── */
 .toast{position:fixed;bottom:1.5rem;right:1.5rem;background:#1a1a1a;color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;z-index:300;opacity:0;transition:opacity 0.3s;pointer-events:none;}
 .toast.show{opacity:1;}
 
+/* ── Loading ── */
+.loading-msg{padding:3rem;text-align:center;color:#aaa;font-size:13px;}
+
 /* ── Mobile ── */
-@media(max-width:640px){
+@media(max-width:700px){
   .stats{grid-template-columns:1fr 1fr;gap:8px;}
   .stat-value{font-size:20px;}
-  .topbar{flex-wrap:wrap;height:auto;padding:8px 12px;gap:6px;}
-  .topbar-logo{font-size:14px;width:100%;}
+  .topbar{flex-wrap:wrap;height:auto;padding:8px 12px;gap:4px;}
+  .topbar-logo{font-size:14px;}
+  .tab-nav{width:100%;overflow-x:auto;}
+  .tab-btn{padding:0 12px;font-size:12px;}
+  .topbar-right{flex-wrap:wrap;gap:6px;}
   .main{padding:1rem 0.75rem;}
-  .search-input{width:100%;margin-left:0;}
-  table{font-size:12px;}
-  th,td{padding:8px 10px;}
+  .search-input,.install-search{width:100%;margin-left:0;}
+  table{font-size:12px;}th,td{padding:8px 8px;}
   .cust-addr,.job-num,.progress-bar-wrap{display:none;}
+  .job-fin{display:none;}
 }
 </style>
 </head>
 <body>
 
-<!-- Login -->
-<div id="login-screen">
+<!-- ═══ LOGIN ══════════════════════════════════════════════════════════════ -->
+<div id="login-screen" style="display:none;">
   <div class="login-card">
-    <div class="login-logo">HCP <span>Invoices</span></div>
-    <div class="login-sub">Outstanding invoice tracker</div>
-    <input type="password" class="pin-input" id="pin-input" placeholder="Enter your PIN" maxlength="6" inputmode="numeric">
+    <div class="login-logo">NAGeo <span>Operations</span></div>
+    <div class="login-sub">Enter your PIN to continue</div>
+    <input type="password" class="pin-input" id="pin-input" placeholder="PIN" maxlength="6" inputmode="numeric">
     <button class="login-btn" onclick="doLogin()">Sign in</button>
     <div class="login-error" id="login-error"></div>
   </div>
 </div>
 
-<!-- App -->
+<!-- ═══ APP ════════════════════════════════════════════════════════════════ -->
 <div id="app">
   <div class="topbar">
-    <div class="topbar-logo">HCP <span>Outstanding Invoices</span></div>
-    <button class="sync-btn" id="sync-btn" onclick="syncInvoices()">&#8635; Sync HCP</button>
-    <span class="last-synced" id="last-synced"></span>
-    <div class="topbar-user">Signed in as <strong id="topbar-name"></strong></div>
-    <button class="logout-btn" onclick="doLogout()">Sign out</button>
+    <div class="topbar-logo">NAGeo <span>Ops</span></div>
+    <nav class="tab-nav">
+      <button class="tab-btn active" id="tab-btn-invoices" onclick="switchTab('invoices')">Outstanding Invoices</button>
+      <button class="tab-btn" id="tab-btn-install" onclick="switchTab('install')">Install Jobs</button>
+      <button class="tab-btn" id="tab-btn-archive" onclick="switchTab('archive')">Archive</button>
+    </nav>
+    <div class="topbar-right">
+      <button class="sync-btn" id="sync-btn-invoices" onclick="syncInvoices()">&#8635; Sync HCP</button>
+      <button class="sync-btn" id="sync-btn-install" style="display:none" onclick="syncInstallJobs()">&#8635; Sync Install Jobs</button>
+      <span class="last-synced" id="last-synced"></span>
+      <div class="topbar-user">Signed in as <strong id="topbar-name"></strong></div>
+      <button class="logout-btn" onclick="doLogout()">Sign out</button>
+    </div>
   </div>
 
-  <div class="main">
+  <!-- TAB: Outstanding Invoices -->
+  <div class="main" id="view-invoices">
     <div id="error-banner" class="error-banner" style="display:none;"></div>
-
     <div class="stats">
       <div class="stat">
         <div class="stat-label">Total owed to us</div>
@@ -169,7 +301,6 @@ tr.confirm-row:last-child td{border-bottom:none;}
         <div class="stat-sub">remainder still owed</div>
       </div>
     </div>
-
     <div class="filter-bar">
       <button class="fbtn active" id="f-all" onclick="setFilter('all')">All outstanding</button>
       <button class="fbtn" id="f-unpaid" onclick="setFilter('unpaid')">Unpaid only</button>
@@ -184,14 +315,13 @@ tr.confirm-row:last-child td{border-bottom:none;}
       </select>
       <input type="text" class="search-input" id="search-input" placeholder="Search customer or address..." oninput="renderTable()">
     </div>
-
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
             <th onclick="setSort('name-asc')">Customer</th>
             <th onclick="setSort('date-desc')">Job date</th>
-            <th class="no-sort">Invoice #</th>
+            <th class="no-sort">Job #</th>
             <th onclick="setSort('total-desc')">Total</th>
             <th class="no-sort">Paid</th>
             <th onclick="setSort('balance-desc')">Balance due</th>
@@ -205,13 +335,60 @@ tr.confirm-row:last-child td{border-bottom:none;}
       </table>
     </div>
   </div>
+
+  <!-- TAB: Install Jobs -->
+  <div class="main" id="view-install" style="display:none">
+    <div id="install-error-banner" class="error-banner" style="display:none;"></div>
+    <div class="stats" id="install-stats">
+      <div class="stat">
+        <div class="stat-label">Active install jobs</div>
+        <div class="stat-value stat-value-lg" id="is-count">—</div>
+        <div class="stat-sub">with Install tag</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Receivables outstanding</div>
+        <div class="stat-value" id="is-recv" style="color:#2563eb">—</div>
+        <div class="stat-sub">owed to us</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Payables outstanding</div>
+        <div class="stat-value" id="is-pay" style="color:#dc2626">—</div>
+        <div class="stat-sub">we still owe vendors</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Net cash position</div>
+        <div class="stat-value" id="is-net">—</div>
+        <div class="stat-sub">recv − pay</div>
+      </div>
+    </div>
+    <div class="install-header">
+      <span id="install-job-count" style="font-size:12px;color:#888;"></span>
+      <input type="text" class="install-search" id="install-search" placeholder="Search jobs..." oninput="renderInstallJobs()">
+    </div>
+    <div id="install-job-list">
+      <div class="loading-msg">Loading install jobs…</div>
+    </div>
+  </div>
+
+  <!-- TAB: Archive -->
+  <div class="main" id="view-archive" style="display:none">
+    <div class="archive-header">
+      <div class="section-title">Archived Install Jobs</div>
+      <span style="font-size:12px;color:#888;">Jobs moved here are fully preserved.</span>
+    </div>
+    <div id="archive-job-list">
+      <div class="loading-msg">Loading…</div>
+    </div>
+  </div>
 </div>
 
-<!-- Hidden invoices modal -->
+<!-- ═══ MODALS ═════════════════════════════════════════════════════════════ -->
+
+<!-- Hidden Invoices Modal -->
 <div class="modal-bg" id="hidden-modal">
   <div class="modal">
     <div class="modal-title">Hidden invoices</div>
-    <div class="modal-sub">These are hidden from the main list. Restore any to bring them back.</div>
+    <div class="modal-sub">These won't appear in the main list. Restore any to bring them back.</div>
     <div class="modal-list" id="hidden-modal-list"></div>
     <div class="modal-footer">
       <button class="modal-close" onclick="closeHiddenModal()">Close</button>
@@ -219,50 +396,106 @@ tr.confirm-row:last-child td{border-bottom:none;}
   </div>
 </div>
 
+<!-- CSV Preview Modal -->
+<div class="modal-bg" id="csv-modal">
+  <div class="modal">
+    <div class="modal-title">Import Payables from CSV</div>
+    <div class="modal-sub" id="csv-modal-sub">Review before importing.</div>
+    <div class="csv-preview-list" id="csv-preview-list"></div>
+    <div class="modal-footer">
+      <button class="modal-close" onclick="closeCsvModal()">Cancel</button>
+      <button class="modal-btn-primary" id="csv-import-btn" onclick="doImportCSV()">Import</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
+<!-- Hidden file input for CSV -->
+<input type="file" id="csv-file-input" accept=".csv" style="display:none" onchange="handleCSVFile(this)">
 
 <script>
+// ══════════════════════════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════════════════════════
 var SUPABASE_URL = 'https://hpgwwegjsxyxovdattoc.supabase.co';
 var SUPABASE_KEY = 'sb_publishable_D2PqYQoJjZ8koEM9NPvmeg_KB_Wa66H';
 var sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+var EDGE_FN = SUPABASE_URL + '/functions/v1/swift-function';
 
+var PAYABLE_CATS = ['Equipment', 'Ground Loop', 'Equipment Install/Duct Work', 'Electrical', 'Other'];
+var CAT_COLORS = {
+  'Equipment': '#fff0f0',
+  'Ground Loop': '#fff8e8',
+  'Equipment Install/Duct Work': '#f0f4ff',
+  'Electrical': '#f8f0ff',
+  'Other': '#f0fff4'
+};
+var CAT_IDS = {
+  'Equipment': 'Equip',
+  'Ground Loop': 'GL',
+  'Equipment Install/Duct Work': 'EI',
+  'Electrical': 'Elec',
+  'Other': 'Other'
+};
+var DEFAULT_MILESTONES = [
+  'Reservation Deposit (w/ Signed Contract)',
+  'Upon Equipment Order',
+  'Upon Ground Loop Completion',
+  'Upon Equipment Installation',
+  'Upon Startup / Completion'
+];
+var PAYMENT_METHODS = ['', 'Cash', 'Check', 'Credit Card', 'ACH / Wire', 'Financing', 'Other'];
+
+// ══════════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════════
 var currentUser = null;
 var users = [];
+
+// Invoices
 var invoices = [];
 var filterMode = 'all';
 var sortMode = 'balance-desc';
 var syncing = false;
-var pendingHideId = null; // which row is in "confirm" state
-
-// ── Ignored IDs (persisted in localStorage) ──────────────
+var pendingHideId = null;
 var ignoredIds = new Set();
 
-function loadIgnored() {
-  try {
-    var raw = localStorage.getItem('hcpinv_ignored');
-    if (raw) ignoredIds = new Set(JSON.parse(raw));
-  } catch(e) { ignoredIds = new Set(); }
-}
+// Install Jobs
+var installJobs = [];       // active jobs with payables/milestones/activity
+var archiveJobs = [];       // archived jobs
+var installJobsLoaded = false;
+var installSyncing = false;
+var jobOpenSet = new Set(); // job IDs that are expanded
+var catOpenSet = new Set(); // "jobId:catId" that are expanded
+var pendingArchiveId = null;
+var csvPendingJobId = null;
+var csvPendingRows = [];
 
-function saveIgnored() {
-  localStorage.setItem('hcpinv_ignored', JSON.stringify(Array.from(ignoredIds)));
-}
-
-// ── Auth ──────────────────────────────────────────────────
-
+// ══════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════
 async function init() {
   loadIgnored();
   var saved = localStorage.getItem('hcpinv_user');
-  if (saved) { currentUser = JSON.parse(saved); showApp(); return; }
+  if (saved) {
+    try { currentUser = JSON.parse(saved); } catch(e) {}
+  }
+  if (currentUser) {
+    showApp();
+    return;
+  }
   var res = await sb.from('users').select('*').order('name');
   users = res.data || [];
   document.getElementById('login-screen').style.display = 'flex';
 }
 
+// ══════════════════════════════════════════════════════════
+// AUTH
+// ══════════════════════════════════════════════════════════
 function doLogin() {
   var pin = document.getElementById('pin-input').value.trim();
   if (!pin) { document.getElementById('login-error').textContent = 'Enter your PIN.'; return; }
-  var user = users.find(function(u){ return u.pin === pin; });
+  var user = users.find(function(u){ return String(u.pin) === pin; });
   if (!user) {
     document.getElementById('login-error').textContent = 'PIN not recognized.';
     document.getElementById('pin-input').value = '';
@@ -274,12 +507,13 @@ function doLogin() {
 }
 
 document.addEventListener('keydown', function(e) {
-  if (e.key === 'Enter' && document.getElementById('login-screen').style.display !== 'none') doLogin();
+  var ls = document.getElementById('login-screen');
+  if (e.key === 'Enter' && ls && ls.style.display !== 'none') doLogin();
 });
 
 document.getElementById('pin-input').addEventListener('input', function() {
   if (this.value.length >= 4) {
-    var user = users.find(function(u){ return u.pin === this.value; }, this);
+    var user = users.find(function(u){ return String(u.pin) === this.value; }, this);
     if (user) doLogin();
   }
 });
@@ -287,10 +521,11 @@ document.getElementById('pin-input').addEventListener('input', function() {
 function doLogout() {
   currentUser = null;
   localStorage.removeItem('hcpinv_user');
-  invoices = [];
+  invoices = []; installJobs = []; installJobsLoaded = false;
   document.getElementById('app').style.display = 'none';
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('pin-input').value = '';
+  document.getElementById('login-error').textContent = '';
 }
 
 function showApp() {
@@ -308,36 +543,51 @@ function showApp() {
   }
 }
 
-// ── Sync ──────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════
+// TAB NAVIGATION
+// ══════════════════════════════════════════════════════════
+var currentTab = 'invoices';
 
+function switchTab(tab) {
+  currentTab = tab;
+  ['invoices','install','archive'].forEach(function(t) {
+    var btn = document.getElementById('tab-btn-' + t);
+    var view = document.getElementById('view-' + t);
+    if (btn) btn.className = 'tab-btn' + (t === tab ? ' active' : '');
+    if (view) view.style.display = t === tab ? 'block' : 'none';
+  });
+  document.getElementById('sync-btn-invoices').style.display = tab === 'invoices' ? 'flex' : 'none';
+  document.getElementById('sync-btn-install').style.display = tab === 'install' ? 'flex' : 'none';
+  document.getElementById('last-synced').style.display = tab === 'invoices' ? '' : 'none';
+
+  if ((tab === 'install' || tab === 'archive') && !installJobsLoaded) {
+    loadInstallJobs();
+  } else if (tab === 'archive') {
+    renderArchive();
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// OUTSTANDING INVOICES — Sync
+// ══════════════════════════════════════════════════════════
 async function syncInvoices() {
   if (syncing) return;
   syncing = true;
   pendingHideId = null;
-  var btn = document.getElementById('sync-btn');
+  var btn = document.getElementById('sync-btn-invoices');
   btn.disabled = true;
-  btn.innerHTML = '<span class="sync-spin">&#8635;</span> Syncing...';
-  hideError();
+  btn.innerHTML = '<span class="sync-spin">&#8635;</span> Syncing…';
+  hideError('error-banner');
 
   try {
-    var res = await fetch(SUPABASE_URL + '/functions/v1/swift-function', {
+    var res = await fetch(EDGE_FN, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + SUPABASE_KEY,
-        'apikey': SUPABASE_KEY
-      },
-      body: JSON.stringify({})
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_KEY, 'apikey': SUPABASE_KEY },
+      body: JSON.stringify({ action: 'invoices' })
     });
-
-    if (!res.ok) {
-      var txt = await res.text();
-      throw new Error('Edge function error ' + res.status + ': ' + txt);
-    }
-
+    if (!res.ok) throw new Error('Edge function error ' + res.status + ': ' + await res.text());
     var data = await res.json();
     if (data.error) throw new Error(data.error);
-
     invoices = data.invoices || [];
     var now = new Date().toISOString();
     localStorage.setItem('hcpinv_data', JSON.stringify({ invoices: invoices, syncedAt: now }));
@@ -346,7 +596,7 @@ async function syncInvoices() {
     var visible = invoices.filter(function(inv){ return !ignoredIds.has(inv.hcp_job_id); }).length;
     showToast('Synced — ' + visible + ' outstanding invoice' + (visible !== 1 ? 's' : '') + ' found.');
   } catch(e) {
-    showError(e.message || 'Sync failed. Check the edge function is deployed.');
+    showError('error-banner', e.message || 'Sync failed.');
   }
 
   syncing = false;
@@ -361,85 +611,44 @@ function updateLastSynced(isoStr) {
   document.getElementById('last-synced').textContent = 'Last synced: ' + d.toLocaleString('en-US', opts);
 }
 
-// ── Hide / Ignore ─────────────────────────────────────────
-
-function startHide(jobId) {
-  // If another row is pending, cancel it first
-  if (pendingHideId && pendingHideId !== jobId) cancelHide();
-  pendingHideId = jobId;
-  renderTable();
+// ══════════════════════════════════════════════════════════
+// OUTSTANDING INVOICES — Hide / Restore
+// ══════════════════════════════════════════════════════════
+function loadIgnored() {
+  try { var r = localStorage.getItem('hcpinv_ignored'); if (r) ignoredIds = new Set(JSON.parse(r)); } catch(e) { ignoredIds = new Set(); }
 }
+function saveIgnored() { localStorage.setItem('hcpinv_ignored', JSON.stringify(Array.from(ignoredIds))); }
 
-function cancelHide() {
-  pendingHideId = null;
-  renderTable();
-}
+function startHide(jobId) { if (pendingHideId && pendingHideId !== jobId) cancelHide(); pendingHideId = jobId; renderTable(); }
+function cancelHide() { pendingHideId = null; renderTable(); }
+function confirmHide(jobId) { ignoredIds.add(jobId); saveIgnored(); pendingHideId = null; renderAll(); showToast('Invoice hidden. Use the hidden button to restore.'); }
+function restoreInvoice(jobId) { ignoredIds.delete(jobId); saveIgnored(); renderAll(); renderHiddenModal(); showToast('Invoice restored.'); }
 
-function confirmHide(jobId) {
-  ignoredIds.add(jobId);
-  saveIgnored();
-  pendingHideId = null;
-  renderAll();
-  showToast('Invoice hidden. Use "hidden" button to restore it.');
-}
-
-function restoreInvoice(jobId) {
-  ignoredIds.delete(jobId);
-  saveIgnored();
-  renderAll();
-  renderHiddenModal();
-  showToast('Invoice restored.');
-}
-
-// ── Hidden modal ──────────────────────────────────────────
-
-function openHiddenModal() {
-  renderHiddenModal();
-  document.getElementById('hidden-modal').classList.add('open');
-}
-
-function closeHiddenModal() {
-  document.getElementById('hidden-modal').classList.remove('open');
-}
-
+function openHiddenModal() { renderHiddenModal(); document.getElementById('hidden-modal').classList.add('open'); }
+function closeHiddenModal() { document.getElementById('hidden-modal').classList.remove('open'); }
 function renderHiddenModal() {
   var hidden = invoices.filter(function(inv){ return ignoredIds.has(inv.hcp_job_id); });
   var el = document.getElementById('hidden-modal-list');
-  if (!hidden.length) {
-    el.innerHTML = '<div class="modal-empty">No hidden invoices.</div>';
-    return;
-  }
+  if (!hidden.length) { el.innerHTML = '<div class="modal-empty">No hidden invoices.</div>'; return; }
   var html = '';
   hidden.forEach(function(inv) {
-    html += '<div class="modal-item">';
-    html += '<div><div class="modal-item-name">' + esc(inv.customer_name || 'Unknown') + '</div>';
-    html += '<div class="modal-item-detail">' + (inv.invoice_number ? 'Invoice #' + inv.invoice_number + ' · ' : '') + fmt(inv.outstanding_balance) + ' outstanding</div></div>';
-    html += '<button class="restore-btn" onclick="restoreInvoice(\'' + esc(inv.hcp_job_id) + '\')">Restore</button>';
-    html += '</div>';
+    html += '<div class="modal-item"><div><div class="modal-item-name">' + esc(inv.customer_name || 'Unknown') + '</div>';
+    html += '<div class="modal-item-detail">' + (inv.invoice_number ? 'Job #' + esc(inv.invoice_number) + ' · ' : '') + fmt(inv.outstanding_balance) + ' outstanding</div></div>';
+    html += '<button class="restore-btn" onclick="restoreInvoice(\'' + esc(inv.hcp_job_id) + '\')">Restore</button></div>';
   });
   el.innerHTML = html;
 }
+document.getElementById('hidden-modal').addEventListener('click', function(e){ if (e.target === this) closeHiddenModal(); });
 
-// Close modal on backdrop click
-document.getElementById('hidden-modal').addEventListener('click', function(e) {
-  if (e.target === this) closeHiddenModal();
-});
-
-// ── Filters & Sort ────────────────────────────────────────
-
+// ══════════════════════════════════════════════════════════
+// OUTSTANDING INVOICES — Filters & Render
+// ══════════════════════════════════════════════════════════
 function setFilter(mode) {
   filterMode = mode;
-  ['all','unpaid','partial'].forEach(function(f) {
-    document.getElementById('f-' + f).className = 'fbtn' + (f === mode ? ' active' : '');
-  });
+  ['all','unpaid','partial'].forEach(function(f){ document.getElementById('f-'+f).className = 'fbtn' + (f === mode ? ' active' : ''); });
   renderTable();
 }
-
-function setSort(mode) {
-  sortMode = mode;
-  document.getElementById('sort-select').value = mode;
-  renderTable();
-}
+function setSort(mode) { sortMode = mode; document.getElementById('sort-select').value = mode; renderTable(); }
 
 function getFiltered() {
   var q = (document.getElementById('search-input').value || '').toLowerCase();
@@ -448,107 +657,84 @@ function getFiltered() {
     if (filterMode === 'unpaid' && inv.amount_paid > 0) return false;
     if (filterMode === 'partial' && inv.amount_paid <= 0) return false;
     if (q) {
-      var haystack = ((inv.customer_name || '') + ' ' + (inv.address || '') + ' ' + (inv.invoice_number || '')).toLowerCase();
-      if (!haystack.includes(q)) return false;
+      var hay = ((inv.customer_name||'')+' '+(inv.address||'')+' '+(inv.invoice_number||'')).toLowerCase();
+      if (!hay.includes(q)) return false;
     }
     return true;
   });
 }
 
 function getSorted(list) {
-  return list.slice().sort(function(a, b) {
-    switch (sortMode) {
+  return list.slice().sort(function(a,b){
+    switch(sortMode){
       case 'balance-desc': return b.outstanding_balance - a.outstanding_balance;
       case 'balance-asc':  return a.outstanding_balance - b.outstanding_balance;
       case 'total-desc':   return b.total_amount - a.total_amount;
-      case 'date-desc':    return new Date(b.job_date || 0) - new Date(a.job_date || 0);
-      case 'date-asc':     return new Date(a.job_date || 0) - new Date(b.job_date || 0);
-      case 'name-asc':     return (a.customer_name || '').localeCompare(b.customer_name || '');
+      case 'date-desc':    return new Date(b.job_date||0) - new Date(a.job_date||0);
+      case 'date-asc':     return new Date(a.job_date||0) - new Date(b.job_date||0);
+      case 'name-asc':     return (a.customer_name||'').localeCompare(b.customer_name||'');
       default: return 0;
     }
   });
 }
 
-// ── Render ────────────────────────────────────────────────
-
-function renderAll() {
-  updateStats();
-  updateHiddenPill();
-  renderTable();
-}
+function renderAll() { updateStats(); updateHiddenPill(); renderTable(); }
 
 function updateStats() {
   var visible = invoices.filter(function(inv){ return !ignoredIds.has(inv.hcp_job_id); });
-  var totalBalance = visible.reduce(function(s, inv) { return s + (inv.outstanding_balance || 0); }, 0);
-  var unpaid  = visible.filter(function(inv) { return inv.amount_paid <= 0; }).length;
-  var partial = visible.filter(function(inv) { return inv.amount_paid > 0; }).length;
-
-  document.getElementById('s-total').textContent = fmt(totalBalance);
+  var totalBal = visible.reduce(function(s,inv){ return s + (inv.outstanding_balance||0); }, 0);
+  var unpaid  = visible.filter(function(inv){ return inv.amount_paid <= 0; }).length;
+  var partial = visible.filter(function(inv){ return inv.amount_paid > 0; }).length;
+  document.getElementById('s-total').textContent = fmt(totalBal);
   document.getElementById('s-count').textContent = visible.length;
   document.getElementById('s-unpaid').textContent = unpaid;
   document.getElementById('s-partial').textContent = partial;
 }
 
 function updateHiddenPill() {
-  var hiddenCount = invoices.filter(function(inv){ return ignoredIds.has(inv.hcp_job_id); }).length;
-  var pill = document.getElementById('hidden-pill');
-  document.getElementById('hidden-count').textContent = hiddenCount;
-  pill.className = 'hidden-pill' + (hiddenCount > 0 ? ' visible' : '');
+  var n = invoices.filter(function(inv){ return ignoredIds.has(inv.hcp_job_id); }).length;
+  document.getElementById('hidden-count').textContent = n;
+  document.getElementById('hidden-pill').className = 'hidden-pill' + (n > 0 ? ' visible' : '');
 }
 
 function renderTable() {
   var list = getSorted(getFiltered());
   var tbody = document.getElementById('invoice-tbody');
   if (!list.length) {
-    tbody.innerHTML = '<tr><td colspan="8" class="empty">' +
-      (invoices.filter(function(i){ return !ignoredIds.has(i.hcp_job_id); }).length === 0 && invoices.length > 0
-        ? 'All invoices are hidden. Use the hidden button to restore them.'
-        : invoices.length ? 'No invoices match your filter.' : 'Click "Sync HCP" to load outstanding invoices.')
-      + '</td></tr>';
+    var msg = invoices.filter(function(i){ return !ignoredIds.has(i.hcp_job_id); }).length === 0 && invoices.length > 0
+      ? 'All invoices are hidden. Use the hidden button to restore.'
+      : invoices.length ? 'No invoices match your filter.' : 'Click "Sync HCP" to load outstanding invoices.';
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">' + msg + '</td></tr>';
     return;
   }
-
   var html = '';
   list.forEach(function(inv) {
     var total   = inv.total_amount || 0;
     var paid    = inv.amount_paid || 0;
     var balance = inv.outstanding_balance || 0;
-    var isPartial  = paid > 0 && balance < total;
-    var noInvoice  = inv.no_invoice_yet;
-    var isPending  = pendingHideId === inv.hcp_job_id;
-    var pct = total > 0 ? Math.round((paid / total) * 100) : 0;
+    var isPartial = paid > 0 && balance < total;
+    var noInvoice = inv.no_invoice_yet;
+    var isPending = pendingHideId === inv.hcp_job_id;
+    var pct = total > 0 ? Math.round((paid/total)*100) : 0;
     var balClass = noInvoice ? 'amount' : isPartial ? 'amount bal-orange' : 'amount bal-red';
-    var badge = noInvoice
-      ? '<span class="badge-noinvoice">No invoice yet</span>'
-      : isPartial
-        ? '<span class="badge-partial">Partial</span>'
-        : '<span class="badge-unpaid">Unpaid</span>';
-    var dateStr = inv.job_date ? fmtDate(inv.job_date) : '—';
+    var badge = noInvoice ? '<span class="badge-noinvoice">No invoice yet</span>'
+      : isPartial ? '<span class="badge-partial">Partial</span>'
+      : '<span class="badge-unpaid">Unpaid</span>';
     var safeId = esc(inv.hcp_job_id);
 
     if (isPending) {
-      // Confirmation row
-      html += '<tr class="confirm-row">';
-      html += '<td colspan="7"><span class="confirm-msg">&#9888; Hide "' + esc(inv.customer_name) + '" from this list? It won\'t appear on future syncs.</span></td>';
-      html += '<td style="white-space:nowrap;">';
-      html += '<button class="confirm-yes" onclick="confirmHide(\'' + safeId + '\')">Yes, hide it</button>';
-      html += '<button class="confirm-no" onclick="cancelHide()">Cancel</button>';
-      html += '</td>';
-      html += '</tr>';
+      html += '<tr class="confirm-row"><td colspan="7"><span class="confirm-msg">&#9888; Hide "' + esc(inv.customer_name) + '" from this list?</span></td>';
+      html += '<td style="white-space:nowrap;"><button class="confirm-yes" onclick="confirmHide(\'' + safeId + '\')">Yes, hide it</button><button class="confirm-no" onclick="cancelHide()">Cancel</button></td></tr>';
     } else {
-      // Normal row
       html += '<tr class="normal-row">';
-      html += '<td><div class="cust-name">' + esc(inv.customer_name || 'Unknown') + '</div>';
+      html += '<td><div class="cust-name">' + esc(inv.customer_name||'Unknown') + '</div>';
       if (inv.address) html += '<div class="cust-addr">' + esc(inv.address) + '</div>';
       html += '</td>';
-      html += '<td style="white-space:nowrap;font-size:12px;color:#555;">' + dateStr + '</td>';
-      html += '<td><span class="job-num">' + esc(inv.invoice_number || '—') + '</span></td>';
+      html += '<td style="white-space:nowrap;font-size:12px;color:#555;">' + fmtDate(inv.job_date) + '</td>';
+      html += '<td><span class="job-num">' + esc(inv.invoice_number||'—') + '</span></td>';
       html += '<td class="amount">' + fmt(total) + '</td>';
-      html += '<td>';
-      html += '<span class="amount" style="color:#16a34a">' + fmt(paid) + '</span>';
-      if (total > 0 && isPartial) {
-        html += '<div class="progress-bar-wrap"><div class="progress-bar" style="width:' + pct + '%;background:#ca8a04"></div></div>';
-      }
+      html += '<td><span class="amount" style="color:#16a34a">' + fmt(paid) + '</span>';
+      if (total > 0 && isPartial) html += '<div class="progress-bar-wrap"><div class="progress-bar" style="width:'+pct+'%;background:#ca8a04"></div></div>';
       html += '</td>';
       html += '<td><span class="' + balClass + '">' + fmt(balance) + '</span></td>';
       html += '<td>' + badge + '</td>';
@@ -556,16 +742,862 @@ function renderTable() {
       html += '</tr>';
     }
   });
-
   tbody.innerHTML = html;
 }
 
-// ── Helpers ───────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════
+// INSTALL JOBS — Sync
+// ══════════════════════════════════════════════════════════
+async function syncInstallJobs() {
+  if (installSyncing) return;
+  installSyncing = true;
+  var btn = document.getElementById('sync-btn-install');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="sync-spin">&#8635;</span> Syncing…';
+  hideError('install-error-banner');
+
+  try {
+    var res = await fetch(EDGE_FN, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_KEY, 'apikey': SUPABASE_KEY },
+      body: JSON.stringify({ action: 'install_jobs' })
+    });
+    if (!res.ok) throw new Error('Edge function error ' + res.status + ': ' + await res.text());
+    var data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    var hcpJobs = data.jobs || [];
+    if (hcpJobs.length === 0) {
+      showToast('No jobs with "Install" tag found in HCP. Check the tag name.');
+      installSyncing = false; btn.disabled = false; btn.innerHTML = '&#8635; Sync Install Jobs'; return;
+    }
+
+    // Upsert into Supabase (only update HCP fields, leave notes/archived alone)
+    var upsertData = hcpJobs.map(function(j) {
+      return {
+        hcp_job_id: j.hcp_job_id,
+        customer_name: j.customer_name,
+        customer_id: j.customer_id,
+        address: j.address,
+        job_date: j.job_date,
+        job_number: j.job_number,
+        hcp_total_amount: j.hcp_total_amount,
+        hcp_amount_paid: j.hcp_amount_paid,
+        hcp_outstanding: j.hcp_outstanding,
+        updated_at: new Date().toISOString()
+      };
+    });
+
+    var upsertRes = await sb.from('install_jobs').upsert(upsertData, { onConflict: 'hcp_job_id' });
+    if (upsertRes.error) throw new Error(upsertRes.error.message);
+
+    showToast('Synced ' + hcpJobs.length + ' install job' + (hcpJobs.length !== 1 ? 's' : '') + ' from HCP.');
+    installJobsLoaded = false;
+    await loadInstallJobs();
+  } catch(e) {
+    showError('install-error-banner', e.message || 'Sync failed.');
+  }
+
+  installSyncing = false; btn.disabled = false; btn.innerHTML = '&#8635; Sync Install Jobs';
+}
+
+// ══════════════════════════════════════════════════════════
+// INSTALL JOBS — Load from Supabase
+// ══════════════════════════════════════════════════════════
+async function loadInstallJobs() {
+  document.getElementById('install-job-list').innerHTML = '<div class="loading-msg">Loading install jobs…</div>';
+  document.getElementById('archive-job-list').innerHTML = '<div class="loading-msg">Loading…</div>';
+
+  try {
+    // Load all install jobs
+    var jobsRes = await sb.from('install_jobs').select('*').order('customer_name');
+    if (jobsRes.error) throw new Error(jobsRes.error.message);
+    var allJobs = jobsRes.data || [];
+    var allJobIds = allJobs.map(function(j){ return j.id; });
+
+    var payables = [], milestones = [], activity = [];
+
+    if (allJobIds.length > 0) {
+      var [pRes, mRes, aRes] = await Promise.all([
+        sb.from('payables').select('*').in('job_id', allJobIds).order('sort_order').order('created_at'),
+        sb.from('receivable_milestones').select('*').in('job_id', allJobIds).order('sort_order').order('created_at'),
+        sb.from('job_activity_log').select('*').in('job_id', allJobIds).order('created_at', { ascending: false })
+      ]);
+      payables   = pRes.data || [];
+      milestones = mRes.data || [];
+      activity   = aRes.data || [];
+    }
+
+    // Join
+    function buildJob(job) {
+      job.payables   = payables.filter(function(p){ return p.job_id === job.id; });
+      job.milestones = milestones.filter(function(m){ return m.job_id === job.id; });
+      job.activity   = activity.filter(function(a){ return a.job_id === job.id; }).slice(0,30);
+      return job;
+    }
+
+    installJobs = allJobs.filter(function(j){ return !j.archived; }).map(buildJob);
+    archiveJobs = allJobs.filter(function(j){ return j.archived; }).map(buildJob);
+    installJobsLoaded = true;
+
+    renderInstallJobs();
+    renderArchive();
+    updateInstallStats();
+  } catch(e) {
+    showError('install-error-banner', 'Error loading install jobs: ' + e.message);
+    document.getElementById('install-job-list').innerHTML = '<div class="loading-msg">Error loading data.</div>';
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// INSTALL JOBS — Render
+// ══════════════════════════════════════════════════════════
+function updateInstallStats() {
+  var totalRecvOuts = 0, totalPayOuts = 0;
+  installJobs.forEach(function(job) {
+    var f = getJobFinancials(job);
+    totalRecvOuts += f.recvOuts;
+    totalPayOuts  += f.payOuts;
+  });
+  var net = totalRecvOuts - totalPayOuts;
+  document.getElementById('is-count').textContent = installJobs.length;
+  document.getElementById('is-recv').textContent = fmtMoney(totalRecvOuts);
+  document.getElementById('is-pay').textContent = fmtMoney(totalPayOuts);
+  var netEl = document.getElementById('is-net');
+  netEl.textContent = fmtMoney(net);
+  netEl.style.color = net >= 0 ? '#16a34a' : '#dc2626';
+}
+
+function renderInstallJobs() {
+  var q = (document.getElementById('install-search') ? document.getElementById('install-search').value : '').toLowerCase();
+  var list = installJobs.filter(function(j) {
+    if (!q) return true;
+    return ((j.customer_name||'')+' '+(j.address||'')+' '+(j.job_number||'')).toLowerCase().includes(q);
+  });
+  var el = document.getElementById('install-job-list');
+  var countEl = document.getElementById('install-job-count');
+  if (countEl) countEl.textContent = list.length + ' job' + (list.length !== 1 ? 's' : '');
+  if (!list.length) {
+    el.innerHTML = '<div class="empty">' + (installJobs.length ? 'No jobs match your search.' : 'No install jobs yet. Click "Sync Install Jobs" to pull from HCP.') + '</div>';
+    return;
+  }
+  el.innerHTML = list.map(renderJobCard).join('');
+}
+
+function renderJobCard(job, forArchive) {
+  var id = job.id;
+  var sid = id.replace(/-/g,'_');
+  var f = getJobFinancials(job);
+  var initials = (job.customer_name || 'JB').split(' ').map(function(w){ return w[0]||''; }).join('').toUpperCase().slice(0,2);
+  var isOpen = jobOpenSet.has(id);
+  var isArcPending = pendingArchiveId === id;
+
+  var arcBtns = '';
+  if (!forArchive) {
+    if (isArcPending) {
+      arcBtns = '<span class="arc-confirm">Archive this job?</span>'
+        + '<button class="arc-yes" onclick="event.stopPropagation();confirmArchive(\'' + id + '\')">Yes</button>'
+        + '<button class="arc-no" onclick="event.stopPropagation();cancelArchive()">Cancel</button>';
+    } else {
+      arcBtns = '<button class="arc-btn" onclick="event.stopPropagation();startArchive(\'' + id + '\')">Archive</button>';
+    }
+  } else {
+    arcBtns = '<button class="unarchive-btn" onclick="event.stopPropagation();unarchiveJob(\'' + id + '\')">Unarchive</button>';
+  }
+
+  var netClass = f.net >= 0 ? 'fin-net-pos' : 'fin-net-neg';
+
+  var html = '<div class="job-card" id="card-' + sid + '">';
+  html += '<div class="job-hd" onclick="toggleJobCard(\'' + id + '\')">';
+  html += '<div class="job-avatar">' + esc(initials) + '</div>';
+  html += '<div class="job-info"><div class="job-name">' + esc(job.customer_name||'Unknown') + '</div>';
+  if (job.address) html += '<div class="job-addr">' + esc(job.address) + '</div>';
+  html += '</div>';
+  if (job.job_number) html += '<span class="job-num-chip">Job #' + esc(job.job_number) + '</span>';
+  html += '<div class="job-fin">';
+  html += '<div class="job-fin-item"><div class="job-fin-label">Recv Owed</div><div class="job-fin-val fin-recv">' + fmtMoney(f.recvOuts) + '</div></div>';
+  html += '<div class="job-fin-item"><div class="job-fin-label">Pay Owed</div><div class="job-fin-val fin-pay">' + fmtMoney(f.payOuts) + '</div></div>';
+  html += '<div class="job-fin-item"><div class="job-fin-label">Net</div><div class="job-fin-val ' + netClass + '">' + fmtMoney(f.net) + '</div></div>';
+  html += '</div>';
+  html += arcBtns;
+  html += '<span class="job-chevron' + (isOpen ? ' open' : '') + '" id="chev-' + sid + '">&#9658;</span>';
+  html += '</div>'; // .job-hd
+
+  html += '<div class="job-body" id="body-' + sid + '" style="display:' + (isOpen ? 'block' : 'none') + '">';
+  html += renderReceivablesSection(job);
+  html += renderPayablesSection(job);
+  html += renderActivitySection(job);
+  html += '</div>'; // .job-body
+  html += '</div>'; // .job-card
+  return html;
+}
+
+function toggleJobCard(jobId) {
+  var sid = jobId.replace(/-/g,'_');
+  var body = document.getElementById('body-' + sid);
+  var chev = document.getElementById('chev-' + sid);
+  if (!body) return;
+  if (jobOpenSet.has(jobId)) {
+    jobOpenSet.delete(jobId);
+    body.style.display = 'none';
+    if (chev) { chev.textContent = '▶'; chev.classList.remove('open'); }
+  } else {
+    jobOpenSet.add(jobId);
+    body.style.display = 'block';
+    if (chev) { chev.innerHTML = '&#9658;'; chev.classList.add('open'); }
+  }
+}
+
+// ── Archive on card ──
+function startArchive(jobId) { pendingArchiveId = jobId; renderInstallJobs(); }
+function cancelArchive() { pendingArchiveId = null; renderInstallJobs(); }
+async function confirmArchive(jobId) {
+  pendingArchiveId = null;
+  var upd = await sb.from('install_jobs').update({ archived: true, updated_at: new Date().toISOString() }).eq('id', jobId);
+  if (upd.error) { showToast('Error archiving job.'); return; }
+  await logActivity(jobId, 'Job archived', 'Moved to archive');
+  installJobs = installJobs.filter(function(j){ return j.id !== jobId; });
+  jobOpenSet.delete(jobId);
+  renderInstallJobs();
+  updateInstallStats();
+  showToast('Job archived.');
+}
+
+async function unarchiveJob(jobId) {
+  var upd = await sb.from('install_jobs').update({ archived: false, updated_at: new Date().toISOString() }).eq('id', jobId);
+  if (upd.error) { showToast('Error.'); return; }
+  await logActivity(jobId, 'Job unarchived', '');
+  installJobsLoaded = false;
+  await loadInstallJobs();
+  showToast('Job restored to Install Jobs.');
+}
+
+// ══════════════════════════════════════════════════════════
+// RECEIVABLES SECTION
+// ══════════════════════════════════════════════════════════
+function renderReceivablesSection(job) {
+  var id = job.id;
+  var sid = id.replace(/-/g,'_');
+
+  var html = '<div class="section-block">';
+  html += '<div class="section-hd">';
+  html += '<span class="section-title">Receivables — What the customer owes us</span>';
+  html += '<button class="btn-sm-g" onclick="event.stopPropagation();addMilestone(\'' + id + '\')">+ Add milestone</button>';
+  if (job.milestones.length === 0) {
+    html += '<button class="btn-sm-gray" onclick="event.stopPropagation();addDefaultMilestones(\'' + id + '\')">+ Add standard milestones</button>';
+  }
+  html += '</div>';
+
+  // HCP summary info
+  if (job.hcp_total_amount > 0 || job.hcp_outstanding > 0) {
+    html += '<div class="hcp-info">HCP Invoice <strong>#' + esc(job.job_number||'—') + '</strong>: ';
+    html += 'Total <strong>' + fmt(job.hcp_total_amount) + '</strong> · ';
+    html += 'Paid <strong style="color:#16a34a">' + fmt(job.hcp_amount_paid) + '</strong> · ';
+    html += 'Outstanding <strong style="color:#dc2626">' + fmt(job.hcp_outstanding) + '</strong>';
+    html += '</div>';
+  }
+
+  // Milestone table
+  html += '<div class="ms-table-wrap"><table class="ms-table">';
+  html += '<thead><tr><th>Milestone / Description</th><th>Amount Due</th><th>Amount Paid</th><th>Date Paid</th><th>Method</th><th>Notes</th><th></th></tr></thead>';
+  html += '<tbody id="ms-tbody-' + sid + '">';
+  job.milestones.forEach(function(m) {
+    html += renderMilestoneRow(m, sid);
+  });
+  html += '</tbody>';
+
+  // Totals footer
+  var totalDue  = job.milestones.reduce(function(s,m){ return s+(m.amount_due||0); },0);
+  var totalPaid = job.milestones.reduce(function(s,m){ return s+(m.amount_paid||0); },0);
+  var totalOuts = totalDue - totalPaid;
+  if (job.milestones.length > 0) {
+    html += '<tfoot><tr>';
+    html += '<td><strong>Total</strong></td>';
+    html += '<td style="text-align:right;font-weight:600;" id="ms-total-due-' + sid + '">' + fmtMoney(totalDue) + '</td>';
+    html += '<td style="text-align:right;font-weight:600;color:#16a34a;" id="ms-total-paid-' + sid + '">' + fmtMoney(totalPaid) + '</td>';
+    html += '<td colspan="3"></td>';
+    html += '<td style="text-align:right;font-weight:600;color:' + (totalOuts > 0 ? '#dc2626' : '#16a34a') + ';" id="ms-total-outs-' + sid + '">' + fmtMoney(totalOuts) + ' due</td>';
+    html += '</tr></tfoot>';
+  }
+  html += '</table></div>';
+  html += '</div>'; // .section-block
+  return html;
+}
+
+function renderMilestoneRow(m, sid) {
+  var mSid = m.id.replace(/-/g,'_');
+  var isPaid = (m.amount_paid||0) >= (m.amount_due||0) && (m.amount_due||0) > 0;
+  var methodOpts = PAYMENT_METHODS.map(function(pm) {
+    return '<option value="' + esc(pm) + '"' + (m.payment_method === pm ? ' selected' : '') + '>' + esc(pm||'— Method —') + '</option>';
+  }).join('');
+  return '<tr class="' + (isPaid ? 'ms-row-paid' : '') + '" data-ms-id="' + m.id + '" data-job-sid="' + sid + '">'
+    + '<td><input class="ci ci-wide" data-ms="desc" value="' + esc(m.description||'') + '" onblur="saveMilestone(\'' + m.id + '\')" /></td>'
+    + '<td><input class="ci ci-num" type="number" step="0.01" min="0" data-ms="due" value="' + (m.amount_due||0) + '" onblur="saveMilestone(\'' + m.id + '\')" /></td>'
+    + '<td><input class="ci ci-num" type="number" step="0.01" min="0" data-ms="paid" value="' + (m.amount_paid||0) + '" onblur="saveMilestone(\'' + m.id + '\')" /></td>'
+    + '<td><input class="ci ci-date" type="date" data-ms="date" value="' + esc(m.date_paid||'') + '" onblur="saveMilestone(\'' + m.id + '\')" /></td>'
+    + '<td><select class="ci-select" data-ms="method" onchange="saveMilestone(\'' + m.id + '\')">' + methodOpts + '</select></td>'
+    + '<td><input class="ci ci-notes" data-ms="notes" value="' + esc(m.notes||'') + '" onblur="saveMilestone(\'' + m.id + '\')" /></td>'
+    + '<td><button class="del-btn" onclick="deleteMilestone(\'' + m.id + '\')">✕</button></td>'
+    + '</tr>';
+}
+
+async function addMilestone(jobId) {
+  var job = findInstallJob(jobId);
+  if (!job) return;
+  var sortOrder = job.milestones.length;
+  var ins = await sb.from('receivable_milestones').insert({ job_id: jobId, description: '', amount_due: 0, amount_paid: 0, sort_order: sortOrder }).select().single();
+  if (ins.error) { showToast('Error adding milestone.'); return; }
+  job.milestones.push(ins.data);
+  var sid = jobId.replace(/-/g,'_');
+  var tbody = document.getElementById('ms-tbody-' + sid);
+  if (tbody) {
+    var tr = document.createElement('tr');
+    tr.outerHTML; // placeholder — re-render the section
+    var row = renderMilestoneRow(ins.data, sid);
+    tbody.insertAdjacentHTML('beforeend', row);
+    updateMilestoneTotals(jobId);
+  }
+  logActivity(jobId, 'Added receivable milestone', '');
+}
+
+async function addDefaultMilestones(jobId) {
+  var job = findInstallJob(jobId);
+  if (!job) return;
+  var rows = DEFAULT_MILESTONES.map(function(desc, i) {
+    return { job_id: jobId, description: desc, amount_due: 0, amount_paid: 0, sort_order: i };
+  });
+  var ins = await sb.from('receivable_milestones').insert(rows).select();
+  if (ins.error) { showToast('Error.'); return; }
+  ins.data.forEach(function(m){ job.milestones.push(m); });
+  var sid = jobId.replace(/-/g,'_');
+  var tbody = document.getElementById('ms-tbody-' + sid);
+  if (tbody) {
+    var newRows = ins.data.map(function(m){ return renderMilestoneRow(m, sid); }).join('');
+    tbody.insertAdjacentHTML('beforeend', newRows);
+    updateMilestoneTotals(jobId);
+  }
+  logActivity(jobId, 'Added standard milestones (5)', '');
+  showToast('Standard milestones added.');
+}
+
+async function saveMilestone(milestoneId) {
+  var row = document.querySelector('[data-ms-id="' + milestoneId + '"]');
+  if (!row) return;
+  var desc   = (row.querySelector('[data-ms="desc"]') || {}).value || '';
+  var due    = parseFloat((row.querySelector('[data-ms="due"]') || {}).value) || 0;
+  var paid   = parseFloat((row.querySelector('[data-ms="paid"]') || {}).value) || 0;
+  var date   = (row.querySelector('[data-ms="date"]') || {}).value || '';
+  var method = (row.querySelector('[data-ms="method"]') || {}).value || '';
+  var notes  = (row.querySelector('[data-ms="notes"]') || {}).value || '';
+
+  var upd = await sb.from('receivable_milestones').update({
+    description: desc, amount_due: due, amount_paid: paid,
+    date_paid: date, payment_method: method, notes: notes,
+    updated_at: new Date().toISOString()
+  }).eq('id', milestoneId);
+  if (upd.error) { showToast('Error saving milestone.'); return; }
+
+  // Update in-memory
+  var sid = row.getAttribute('data-job-sid');
+  var jobId = sid ? sid.replace(/_/g,'-') : null;
+  // Find correct jobId by searching installJobs
+  var foundJobId = null;
+  installJobs.forEach(function(j){
+    j.milestones.forEach(function(m){
+      if (m.id === milestoneId) {
+        m.description=desc; m.amount_due=due; m.amount_paid=paid; m.date_paid=date; m.payment_method=method; m.notes=notes;
+        foundJobId = j.id;
+      }
+    });
+  });
+  if (foundJobId) {
+    updateMilestoneTotals(foundJobId);
+    updateJobHeaderStats(foundJobId);
+  }
+
+  // Update row style
+  var isPaid = paid >= due && due > 0;
+  row.className = isPaid ? 'ms-row-paid' : '';
+}
+
+async function deleteMilestone(milestoneId) {
+  var row = document.querySelector('[data-ms-id="' + milestoneId + '"]');
+  var foundJobId = null;
+  installJobs.forEach(function(j){
+    var idx = j.milestones.findIndex(function(m){ return m.id === milestoneId; });
+    if (idx > -1) { j.milestones.splice(idx,1); foundJobId = j.id; }
+  });
+  await sb.from('receivable_milestones').delete().eq('id', milestoneId);
+  if (row) row.remove();
+  if (foundJobId) { updateMilestoneTotals(foundJobId); updateJobHeaderStats(foundJobId); }
+  logActivity(foundJobId||'', 'Deleted receivable milestone', '');
+}
+
+function updateMilestoneTotals(jobId) {
+  var job = findInstallJob(jobId);
+  if (!job) return;
+  var sid = jobId.replace(/-/g,'_');
+  var totalDue  = job.milestones.reduce(function(s,m){ return s+(m.amount_due||0); },0);
+  var totalPaid = job.milestones.reduce(function(s,m){ return s+(m.amount_paid||0); },0);
+  var totalOuts = totalDue - totalPaid;
+  var dEl = document.getElementById('ms-total-due-' + sid);
+  var pEl = document.getElementById('ms-total-paid-' + sid);
+  var oEl = document.getElementById('ms-total-outs-' + sid);
+  if (dEl) dEl.textContent = fmtMoney(totalDue);
+  if (pEl) pEl.textContent = fmtMoney(totalPaid);
+  if (oEl) { oEl.textContent = fmtMoney(totalOuts) + ' due'; oEl.style.color = totalOuts > 0 ? '#dc2626' : '#16a34a'; }
+}
+
+// ══════════════════════════════════════════════════════════
+// PAYABLES SECTION
+// ══════════════════════════════════════════════════════════
+function renderPayablesSection(job) {
+  var id = job.id;
+  var sid = id.replace(/-/g,'_');
+
+  var html = '<div class="section-block">';
+  html += '<div class="section-hd">';
+  html += '<span class="section-title">Payables — What we owe vendors</span>';
+  html += '<button class="btn-sm-gray" onclick="event.stopPropagation();triggerCSVUpload(\'' + id + '\')">↑ Upload CSV</button>';
+  html += '</div>';
+
+  PAYABLE_CATS.forEach(function(cat) {
+    var catKey = CAT_IDS[cat];
+    var catId  = sid + '_' + catKey;
+    var color  = CAT_COLORS[cat] || '#fafaf8';
+    var catPayables = job.payables.filter(function(p){ return p.category === cat; });
+    var catDue  = catPayables.reduce(function(s,p){ return s+(p.total_amount||0); },0);
+    var catPaid = catPayables.reduce(function(s,p){ return s+(p.amount_paid||0); },0);
+    var catOuts = catDue - catPaid;
+    var isOpen  = catOpenSet.has(id + ':' + catKey);
+
+    html += '<div class="cat-block" style="border-left:3px solid ' + catBorderColor(cat) + '">';
+    html += '<div class="cat-hd" onclick="event.stopPropagation();togglePayableCat(\'' + id + '\',\'' + catKey + '\')" style="background:' + color + '">';
+    html += '<span class="cat-toggle' + (isOpen ? ' open' : '') + '" id="cat-tog-' + catId + '">&#9658;</span>';
+    html += '<span class="cat-name">' + esc(cat) + '</span>';
+    html += '<span class="cat-stats" id="cat-stats-' + catId + '">' + (catDue > 0 || catPayables.length > 0
+      ? fmtMoney(catDue) + ' total · ' + fmtMoney(catPaid) + ' paid · <strong style="color:' + (catOuts > 0 ? '#dc2626' : '#16a34a') + '">' + fmtMoney(catOuts) + ' outstanding</strong>'
+      : '<span style="color:#ccc">No items yet</span>') + '</span>';
+    html += '</div>';
+    html += '<div class="cat-body" id="cat-body-' + catId + '" style="display:' + (isOpen ? 'block' : 'none') + '">';
+    html += '<div class="cat-tbl-wrap"><table class="cat-table">';
+    html += '<thead><tr><th>Vendor / Contractor</th><th style="text-align:right">Total Due</th><th style="text-align:right">Amt Paid</th><th style="text-align:right">Outstanding</th><th>Notes</th><th style="text-align:center">Paid ✓</th><th></th></tr></thead>';
+    html += '<tbody id="pay-tbody-' + catId + '">';
+    catPayables.forEach(function(p) { html += renderPayableRow(p, sid, cat); });
+    html += '</tbody></table></div>';
+    html += '<div class="cat-add-row"><button class="btn-sm" onclick="event.stopPropagation();addPayable(\'' + id + '\',\'' + esc(cat) + '\')">+ Add vendor</button></div>';
+    html += '</div>'; // .cat-body
+    html += '</div>'; // .cat-block
+  });
+
+  html += '</div>'; // .section-block
+  return html;
+}
+
+function catBorderColor(cat) {
+  var map = { 'Equipment':'#fca5a5', 'Ground Loop':'#fcd34d', 'Equipment Install/Duct Work':'#93c5fd', 'Electrical':'#c4b5fd', 'Other':'#86efac' };
+  return map[cat] || '#ddd';
+}
+
+function renderPayableRow(p, jobSid, cat) {
+  var catKey = CAT_IDS[cat || p.category];
+  var pSid   = p.id.replace(/-/g,'_');
+  var outs   = (p.total_amount||0) - (p.amount_paid||0);
+  var isPaid = p.is_paid || outs <= 0;
+  return '<tr class="' + (isPaid ? 'pay-paid-row' : '') + '" data-pay-id="' + p.id + '" data-job-sid="' + jobSid + '" data-cat-key="' + esc(catKey) + '">'
+    + '<td><input class="ci ci-wide" data-p="vendor" value="' + esc(p.vendor||'') + '" onblur="savePayable(\'' + p.id + '\')" /></td>'
+    + '<td><input class="ci ci-num" type="number" step="0.01" min="0" data-p="total" value="' + (p.total_amount||0) + '" onblur="savePayable(\'' + p.id + '\')" /></td>'
+    + '<td><input class="ci ci-num" type="number" step="0.01" min="0" data-p="paid" value="' + (p.amount_paid||0) + '" onblur="savePayable(\'' + p.id + '\')" /></td>'
+    + '<td class="cell-outs' + (outs <= 0 ? ' paid' : '') + '" id="pay-outs-' + pSid + '">' + fmtMoney(outs) + '</td>'
+    + '<td><input class="ci ci-notes" data-p="notes" value="' + esc(p.notes||'') + '" onblur="savePayable(\'' + p.id + '\')" /></td>'
+    + '<td style="text-align:center"><input type="checkbox" class="paid-chk" ' + (isPaid ? 'checked' : '') + ' onchange="togglePayablePaid(\'' + p.id + '\',this.checked)" /></td>'
+    + '<td><button class="del-btn" onclick="deletePayable(\'' + p.id + '\')">✕</button></td>'
+    + '</tr>';
+}
+
+function togglePayableCat(jobId, catKey) {
+  var sid    = jobId.replace(/-/g,'_');
+  var catId  = sid + '_' + catKey;
+  var body   = document.getElementById('cat-body-' + catId);
+  var tog    = document.getElementById('cat-tog-' + catId);
+  var key    = jobId + ':' + catKey;
+  if (catOpenSet.has(key)) {
+    catOpenSet.delete(key);
+    if (body) body.style.display = 'none';
+    if (tog)  { tog.innerHTML = '&#9658;'; tog.classList.remove('open'); }
+  } else {
+    catOpenSet.add(key);
+    if (body) body.style.display = 'block';
+    if (tog)  { tog.innerHTML = '&#9658;'; tog.classList.add('open'); }
+  }
+}
+
+async function addPayable(jobId, category) {
+  var job = findInstallJob(jobId);
+  if (!job) return;
+  var sortOrder = job.payables.filter(function(p){ return p.category === category; }).length;
+  var ins = await sb.from('payables').insert({ job_id: jobId, category: category, vendor: '', total_amount: 0, amount_paid: 0, sort_order: sortOrder }).select().single();
+  if (ins.error) { showToast('Error.'); return; }
+  job.payables.push(ins.data);
+  var sid    = jobId.replace(/-/g,'_');
+  var catKey = CAT_IDS[category];
+  var catId  = sid + '_' + catKey;
+  var tbody  = document.getElementById('pay-tbody-' + catId);
+  if (tbody) {
+    tbody.insertAdjacentHTML('beforeend', renderPayableRow(ins.data, sid, category));
+    updateCatStats(jobId, catKey);
+  }
+  // Auto-open the category
+  if (!catOpenSet.has(jobId + ':' + catKey)) togglePayableCat(jobId, catKey);
+  logActivity(jobId, 'Added payable vendor', category + ' — new row');
+}
+
+async function savePayable(payableId) {
+  var row = document.querySelector('[data-pay-id="' + payableId + '"]');
+  if (!row) return;
+  var vendor = (row.querySelector('[data-p="vendor"]') || {}).value || '';
+  var total  = parseFloat((row.querySelector('[data-p="total"]') || {}).value) || 0;
+  var paid   = parseFloat((row.querySelector('[data-p="paid"]') || {}).value) || 0;
+  var notes  = (row.querySelector('[data-p="notes"]') || {}).value || '';
+  var outs   = total - paid;
+  var isPaid = row.querySelector('.paid-chk') ? row.querySelector('.paid-chk').checked : (outs <= 0 && total > 0);
+
+  var upd = await sb.from('payables').update({ vendor: vendor, total_amount: total, amount_paid: paid, notes: notes, is_paid: isPaid, updated_at: new Date().toISOString() }).eq('id', payableId);
+  if (upd.error) return;
+
+  // Update outstanding cell
+  var pSid = payableId.replace(/-/g,'_');
+  var outsEl = document.getElementById('pay-outs-' + pSid);
+  if (outsEl) { outsEl.textContent = fmtMoney(outs); outsEl.className = 'cell-outs' + (outs <= 0 ? ' paid' : ''); }
+  row.className = (isPaid || outs <= 0) ? 'pay-paid-row' : '';
+
+  // Update in-memory
+  var jobSid = row.getAttribute('data-job-sid');
+  var catKey = row.getAttribute('data-cat-key');
+  var foundJobId = null;
+  installJobs.forEach(function(j){
+    j.payables.forEach(function(p){
+      if (p.id === payableId) { p.vendor=vendor; p.total_amount=total; p.amount_paid=paid; p.notes=notes; p.is_paid=isPaid; foundJobId=j.id; }
+    });
+  });
+  if (foundJobId) { updateCatStats(foundJobId, catKey); updateJobHeaderStats(foundJobId); updateInstallStats(); }
+}
+
+async function togglePayablePaid(payableId, checked) {
+  var row = document.querySelector('[data-pay-id="' + payableId + '"]');
+  if (!row) return;
+  var totalIn = row.querySelector('[data-p="total"]');
+  var paidIn  = row.querySelector('[data-p="paid"]');
+  var total   = parseFloat(totalIn ? totalIn.value : 0) || 0;
+
+  if (checked) {
+    if (paidIn) paidIn.value = total;
+  } else {
+    if (paidIn) paidIn.value = 0;
+  }
+
+  var vendor = (row.querySelector('[data-p="vendor"]') || {}).value || '';
+  var notes  = (row.querySelector('[data-p="notes"]') || {}).value || '';
+  var paid   = checked ? total : 0;
+  var outs   = total - paid;
+  var paidDate = checked ? new Date().toISOString().split('T')[0] : '';
+
+  var upd = await sb.from('payables').update({ amount_paid: paid, is_paid: checked, paid_date: paidDate, updated_at: new Date().toISOString() }).eq('id', payableId);
+  if (upd.error) { showToast('Error saving.'); return; }
+
+  var pSid = payableId.replace(/-/g,'_');
+  var outsEl = document.getElementById('pay-outs-' + pSid);
+  if (outsEl) { outsEl.textContent = fmtMoney(outs); outsEl.className = 'cell-outs' + (outs <= 0 ? ' paid' : ''); }
+  row.className = checked ? 'pay-paid-row' : '';
+
+  // Update in-memory
+  var foundJobId = null;
+  var catKey = row.getAttribute('data-cat-key');
+  installJobs.forEach(function(j){
+    j.payables.forEach(function(p){
+      if (p.id === payableId) { p.amount_paid=paid; p.is_paid=checked; foundJobId=j.id; }
+    });
+  });
+  if (foundJobId) {
+    updateCatStats(foundJobId, catKey);
+    updateJobHeaderStats(foundJobId);
+    updateInstallStats();
+    if (vendor) logActivity(foundJobId, (checked?'Marked paid':'Marked unpaid') + ': ' + vendor, fmtMoney(total));
+  }
+  showToast(checked ? '✓ Marked as paid' : 'Marked as unpaid');
+}
+
+async function deletePayable(payableId) {
+  var row = document.querySelector('[data-pay-id="' + payableId + '"]');
+  var foundJobId = null;
+  var catKey = row ? row.getAttribute('data-cat-key') : null;
+  installJobs.forEach(function(j){
+    var idx = j.payables.findIndex(function(p){ return p.id === payableId; });
+    if (idx > -1) { j.payables.splice(idx,1); foundJobId = j.id; }
+  });
+  await sb.from('payables').delete().eq('id', payableId);
+  if (row) row.remove();
+  if (foundJobId) { updateCatStats(foundJobId, catKey); updateJobHeaderStats(foundJobId); updateInstallStats(); }
+  logActivity(foundJobId||'', 'Deleted payable row', '');
+}
+
+function updateCatStats(jobId, catKey) {
+  var job = findInstallJob(jobId);
+  if (!job) return;
+  var sid   = jobId.replace(/-/g,'_');
+  var catId = sid + '_' + catKey;
+  // Find cat name from catKey
+  var cat = Object.keys(CAT_IDS).find(function(k){ return CAT_IDS[k] === catKey; }) || '';
+  var catPayables = job.payables.filter(function(p){ return p.category === cat; });
+  var catDue  = catPayables.reduce(function(s,p){ return s+(p.total_amount||0); },0);
+  var catPaid = catPayables.reduce(function(s,p){ return s+(p.amount_paid||0); },0);
+  var catOuts = catDue - catPaid;
+  var el = document.getElementById('cat-stats-' + catId);
+  if (el) {
+    el.innerHTML = (catDue > 0 || catPayables.length > 0)
+      ? fmtMoney(catDue) + ' total · ' + fmtMoney(catPaid) + ' paid · <strong style="color:' + (catOuts > 0 ? '#dc2626' : '#16a34a') + '">' + fmtMoney(catOuts) + ' outstanding</strong>'
+      : '<span style="color:#ccc">No items yet</span>';
+  }
+}
+
+function updateJobHeaderStats(jobId) {
+  var job = findInstallJob(jobId);
+  if (!job) return;
+  var f   = getJobFinancials(job);
+  var sid = jobId.replace(/-/g,'_');
+  var card = document.getElementById('card-' + sid);
+  if (!card) return;
+  var fins = card.querySelectorAll('.job-fin-val');
+  if (fins.length >= 3) {
+    fins[0].textContent = fmtMoney(f.recvOuts);
+    fins[1].textContent = fmtMoney(f.payOuts);
+    fins[2].textContent = fmtMoney(f.net);
+    fins[2].className = 'job-fin-val ' + (f.net >= 0 ? 'fin-net-pos' : 'fin-net-neg');
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// CSV UPLOAD
+// ══════════════════════════════════════════════════════════
+function triggerCSVUpload(jobId) {
+  csvPendingJobId = jobId;
+  var inp = document.getElementById('csv-file-input');
+  inp.value = '';
+  inp.click();
+}
+
+function handleCSVFile(input) {
+  if (!input.files || !input.files[0]) return;
+  var reader = new FileReader();
+  reader.onload = function(e) { showCSVPreview(e.target.result, csvPendingJobId); };
+  reader.readAsText(input.files[0]);
+}
+
+function showCSVPreview(text, jobId) {
+  var rows = parseCSVText(text);
+  if (!rows.length) { showToast('No data found in CSV.'); return; }
+  csvPendingRows = rows;
+  var html = rows.map(function(r) {
+    return '<div class="csv-row"><span class="csv-cat">' + esc(r.category) + '</span><span class="csv-vendor">' + esc(r.vendor) + '</span><span class="csv-amt">' + fmtMoney(r.total_amount) + '</span></div>';
+  }).join('');
+  document.getElementById('csv-preview-list').innerHTML = html;
+  document.getElementById('csv-modal-sub').textContent = rows.length + ' line item' + (rows.length !== 1 ? 's' : '') + ' found. Review then click Import.';
+  document.getElementById('csv-modal').classList.add('open');
+}
+
+function closeCsvModal() { document.getElementById('csv-modal').classList.remove('open'); csvPendingRows = []; }
+
+async function doImportCSV() {
+  if (!csvPendingJobId || !csvPendingRows.length) return;
+  var jobId = csvPendingJobId;
+  var job   = findInstallJob(jobId);
+  if (!job) return;
+  var importBtn = document.getElementById('csv-import-btn');
+  importBtn.disabled = true; importBtn.textContent = 'Importing…';
+
+  try {
+    var insertRows = csvPendingRows.map(function(r, i) {
+      return { job_id: jobId, category: r.category, vendor: r.vendor, total_amount: r.total_amount, amount_paid: r.amount_paid || 0, notes: r.notes || '', sort_order: i };
+    });
+    var ins = await sb.from('payables').insert(insertRows).select();
+    if (ins.error) throw new Error(ins.error.message);
+    ins.data.forEach(function(p){ job.payables.push(p); });
+    closeCsvModal();
+    // Re-render just the payables section for this job
+    var sid  = jobId.replace(/-/g,'_');
+    var body = document.getElementById('body-' + sid);
+    if (body && jobOpenSet.has(jobId)) {
+      // Re-render the whole job body
+      var sections = body.querySelectorAll('.section-block');
+      if (sections.length >= 2) {
+        var newPayHtml = renderPayablesSection(job);
+        var tmp = document.createElement('div');
+        tmp.innerHTML = newPayHtml;
+        sections[1].outerHTML = newPayHtml;
+      }
+    }
+    updateJobHeaderStats(jobId);
+    updateInstallStats();
+    logActivity(jobId, 'Imported payables CSV', csvPendingRows.length + ' items');
+    showToast(csvPendingRows.length + ' payable items imported.');
+    csvPendingRows = [];
+  } catch(e) {
+    showToast('Import error: ' + e.message);
+  }
+  importBtn.disabled = false; importBtn.textContent = 'Import';
+}
+
+function parseCSVText(text) {
+  var lines = text.split(/\r?\n/).filter(function(l){ return l.trim(); });
+  if (lines.length < 2) return [];
+  var headers = lines[0].split(',').map(function(h){ return h.trim().toLowerCase().replace(/[^a-z0-9]/g,' ').trim(); });
+
+  function colIdx(keywords) {
+    return headers.findIndex(function(h){ return keywords.some(function(k){ return h.includes(k); }); });
+  }
+  var catCol    = colIdx(['category','cat']);
+  var vendorCol = colIdx(['vendor','contractor','company','name']);
+  var totalCol  = colIdx(['total','amount due','due','amount']);
+  var paidCol   = colIdx(['paid','amount paid']);
+  var notesCol  = colIdx(['note']);
+
+  if (vendorCol === -1 && totalCol === -1) { showToast('Could not detect columns. Expected: Category, Vendor, Total Amount Due'); return []; }
+
+  var lastCat = 'Other';
+  var result  = [];
+  for (var i = 1; i < lines.length; i++) {
+    var cols = splitCSVLine(lines[i]);
+    if (!cols.length) continue;
+    var rawCat = catCol >= 0 ? (cols[catCol]||'').trim() : '';
+    if (rawCat) lastCat = matchCategory(rawCat);
+    var vendor = vendorCol >= 0 ? (cols[vendorCol]||'').trim() : '';
+    var total  = totalCol >= 0 ? parseFloat((cols[totalCol]||'0').replace(/[$,]/g,'')) : 0;
+    var paid   = paidCol >= 0  ? parseFloat((cols[paidCol] ||'0').replace(/[$,]/g,'')) : 0;
+    var notes  = notesCol >= 0 ? (cols[notesCol]||'').trim() : '';
+    if (!vendor && !total) continue;
+    result.push({ category: lastCat, vendor: vendor, total_amount: total || 0, amount_paid: paid || 0, notes: notes });
+  }
+  return result;
+}
+
+function splitCSVLine(line) {
+  var result = [], cur = '', inQ = false;
+  for (var i = 0; i < line.length; i++) {
+    var c = line[i];
+    if (c === '"') { inQ = !inQ; continue; }
+    if (c === ',' && !inQ) { result.push(cur); cur = ''; continue; }
+    cur += c;
+  }
+  result.push(cur);
+  return result;
+}
+
+function matchCategory(raw) {
+  var r = raw.toLowerCase();
+  if (r.includes('equip') && (r.includes('install') || r.includes('duct') || r.includes('hvac'))) return 'Equipment Install/Duct Work';
+  if (r.includes('ground') || r.includes('loop') || r.includes('drill') || r.includes('geo')) return 'Ground Loop';
+  if (r.includes('equip') || r.includes('waterfurnace') || r.includes('unit')) return 'Equipment';
+  if (r.includes('elec')) return 'Electrical';
+  if (r.includes('other') || r.includes('permit') || r.includes('misc') || r.includes('commission') || r.includes('engineer')) return 'Other';
+  return 'Other';
+}
+
+document.getElementById('csv-modal').addEventListener('click', function(e){ if (e.target === this) closeCsvModal(); });
+
+// ══════════════════════════════════════════════════════════
+// ACTIVITY LOG
+// ══════════════════════════════════════════════════════════
+function renderActivitySection(job) {
+  var html = '<div class="activity-section">';
+  html += '<div class="activity-title">Activity Log</div>';
+  html += '<div class="activity-list" id="act-list-' + job.id.replace(/-/g,'_') + '">';
+  if (!job.activity || !job.activity.length) {
+    html += '<div class="act-empty">No activity yet.</div>';
+  } else {
+    job.activity.forEach(function(a) {
+      html += '<div class="activity-entry">'
+        + '<span class="act-who">' + esc(a.user_name||'?') + '</span> '
+        + esc(a.action||'')
+        + (a.detail ? ' <em style="color:#888">— ' + esc(a.detail) + '</em>' : '')
+        + '<span class="act-when">' + fmtRelative(a.created_at) + '</span>'
+        + '</div>';
+    });
+  }
+  html += '</div></div>';
+  return html;
+}
+
+async function logActivity(jobId, action, detail) {
+  if (!jobId || !currentUser) return;
+  var rec = { job_id: jobId, user_name: currentUser.name, action: action, detail: detail || '' };
+  var ins = await sb.from('job_activity_log').insert(rec).select().single();
+  if (ins.error || !ins.data) return;
+
+  // Prepend to in-memory job
+  var job = findInstallJob(jobId);
+  if (job) job.activity.unshift(ins.data);
+
+  // Update DOM
+  var sid = jobId.replace(/-/g,'_');
+  var el  = document.getElementById('act-list-' + sid);
+  if (!el) return;
+  var entry = '<div class="activity-entry">'
+    + '<span class="act-who">' + esc(ins.data.user_name) + '</span> '
+    + esc(ins.data.action)
+    + (ins.data.detail ? ' <em style="color:#888">— ' + esc(ins.data.detail) + '</em>' : '')
+    + '<span class="act-when">Just now</span>'
+    + '</div>';
+  var empty = el.querySelector('.act-empty');
+  if (empty) empty.remove();
+  el.insertAdjacentHTML('afterbegin', entry);
+}
+
+// ══════════════════════════════════════════════════════════
+// ARCHIVE TAB
+// ══════════════════════════════════════════════════════════
+function renderArchive() {
+  var el = document.getElementById('archive-job-list');
+  if (!installJobsLoaded) { el.innerHTML = '<div class="loading-msg">Loading…</div>'; return; }
+  if (!archiveJobs.length) { el.innerHTML = '<div class="arch-empty">No archived jobs yet.</div>'; return; }
+  el.innerHTML = archiveJobs.map(function(job){ return renderJobCard(job, true); }).join('');
+}
+
+// ══════════════════════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════════════════════
+function findInstallJob(jobId) {
+  return installJobs.find(function(j){ return j.id === jobId; }) ||
+         archiveJobs.find(function(j){ return j.id === jobId; }) || null;
+}
+
+function getJobFinancials(job) {
+  var recvDue = 0, recvPaid = 0;
+  if (job.milestones && job.milestones.length > 0) {
+    job.milestones.forEach(function(m){ recvDue += m.amount_due||0; recvPaid += m.amount_paid||0; });
+  } else {
+    recvDue  = job.hcp_total_amount || 0;
+    recvPaid = job.hcp_amount_paid  || 0;
+  }
+  var payDue = 0, payPaid = 0;
+  (job.payables||[]).forEach(function(p){ payDue += p.total_amount||0; payPaid += p.amount_paid||0; });
+  return {
+    recvDue:  recvDue,
+    recvPaid: recvPaid,
+    recvOuts: recvDue - recvPaid,
+    payDue:   payDue,
+    payPaid:  payPaid,
+    payOuts:  payDue - payPaid,
+    net:      (recvDue - recvPaid) - (payDue - payPaid)
+  };
+}
+
+function fmtMoney(n) {
+  return '$' + Number(n||0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 
 function fmt(val) {
+  // HCP values: detect cents (large integers) vs already-dollar amounts
   var n = Number(val) || 0;
-  // If values look like cents (large integers), convert; if already dollars, use as-is.
-  // HCP typically returns cents for invoice amounts.
   var dollars = n > 1000 ? n / 100 : n;
   return '$' + dollars.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -577,27 +1609,32 @@ function fmtDate(str) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 }
 
+function fmtRelative(isoStr) {
+  if (!isoStr) return '';
+  var d = new Date(isoStr);
+  var diff = Date.now() - d.getTime();
+  if (diff < 60000)  return 'just now';
+  if (diff < 3600000) return Math.floor(diff/60000) + 'm ago';
+  if (diff < 86400000) return Math.floor(diff/3600000) + 'h ago';
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
 function esc(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 function showToast(msg) {
   var t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(function() { t.classList.remove('show'); }, 3500);
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(function(){ t.classList.remove('show'); }, 3500);
 }
 
-function showError(msg) {
-  var el = document.getElementById('error-banner');
-  el.textContent = '⚠ ' + msg;
-  el.style.display = 'block';
-}
+function showError(bannerId, msg) { var el = document.getElementById(bannerId); if(el){ el.textContent='⚠ '+msg; el.style.display='block'; } }
+function hideError(bannerId) { var el = document.getElementById(bannerId); if(el) el.style.display='none'; }
 
-function hideError() {
-  document.getElementById('error-banner').style.display = 'none';
-}
-
+// ══════════════════════════════════════════════════════════
+// BOOTSTRAP
+// ══════════════════════════════════════════════════════════
 init();
 </script>
 </body>
