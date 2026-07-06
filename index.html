@@ -906,7 +906,7 @@ function renderInstallJobs() {
     el.innerHTML = '<div class="empty">' + (installJobs.length ? 'No jobs match your search.' : 'No install jobs yet. Click "Sync Install Jobs" to pull from HCP.') + '</div>';
     return;
   }
-  el.innerHTML = list.map(renderJobCard).join('');
+  el.innerHTML = list.map(function(job){ return renderJobCard(job, false); }).join('');
 }
 
 function renderJobCard(job, forArchive) {
