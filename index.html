@@ -6,6 +6,8 @@
 <title>NAGeo — Operations</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.29/jspdf.plugin.autotable.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f4f4f0;color:#1a1a1a;min-height:100vh;}
@@ -117,6 +119,8 @@ tr.confirm-row:last-child td{border-bottom:none;}
 .job-chevron.open{transform:rotate(90deg);}
 .arc-btn{font-size:11px;padding:3px 10px;border:0.5px solid #ddd;border-radius:6px;background:#fff;color:#aaa;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;}
 .arc-btn:hover{border-color:#dc2626;color:#dc2626;background:#fff5f5;}
+.pdf-btn{font-size:11px;padding:3px 10px;border:0.5px solid #bcd;border-radius:6px;background:#f0f6ff;color:#1e6fb5;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;}
+.pdf-btn:hover{background:#ddeeff;border-color:#1e6fb5;}
 .arc-confirm{font-size:11px;color:#92400e;font-weight:500;flex-shrink:0;}
 .arc-yes{font-size:11px;padding:3px 10px;border:none;border-radius:6px;background:#dc2626;color:#fff;cursor:pointer;font-family:inherit;margin-right:4px;}
 .arc-no{font-size:11px;padding:3px 10px;border:0.5px solid #ddd;border-radius:6px;background:#fff;color:#888;cursor:pointer;font-family:inherit;}
@@ -940,6 +944,7 @@ function renderJobCard(job, forArchive) {
   html += '<div class="job-fin-item"><div class="job-fin-label">Pay Owed</div><div class="job-fin-val fin-pay">' + fmtMoney(f.payOuts) + '</div></div>';
   html += '<div class="job-fin-item"><div class="job-fin-label">Net</div><div class="job-fin-val ' + netClass + '">' + fmtMoney(f.net) + '</div></div>';
   html += '</div>';
+  html += '<button class="pdf-btn" onclick="event.stopPropagation();generateJobPDF(\'' + id + '\')" title="Download PDF report">⬇ PDF</button>';
   html += arcBtns;
   html += '<span class="job-chevron' + (isOpen ? ' open' : '') + '" id="chev-' + sid + '">&#9658;</span>';
   html += '</div>'; // .job-hd
@@ -1950,6 +1955,270 @@ function showToast(msg) {
 
 function showError(bannerId, msg) { var el = document.getElementById(bannerId); if(el){ el.textContent='⚠ '+msg; el.style.display='block'; } }
 function hideError(bannerId) { var el = document.getElementById(bannerId); if(el) el.style.display='none'; }
+
+// ══════════════════════════════════════════════════════════
+// PDF EXPORT
+// ══════════════════════════════════════════════════════════
+function pdfMoney(n) {
+  return Number(n||0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function pdfDate(str) {
+  if (!str) return '';
+  var m = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return parseInt(m[2],10) + '/' + parseInt(m[3],10) + '/' + m[1].slice(2);
+  var d = new Date(str);
+  return isNaN(d) ? str : (d.getMonth()+1) + '/' + d.getDate() + '/' + (d.getFullYear()+'').slice(2);
+}
+function mergeStyle(a, b) {
+  var r = {};
+  for (var k in a) { if (a.hasOwnProperty(k)) r[k] = a[k]; }
+  for (var k in b) { if (b.hasOwnProperty(k)) r[k] = b[k]; }
+  return r;
+}
+
+function generateJobPDF(jobId) {
+  if (!window.jspdf) { showToast('PDF library still loading — try again in a moment.'); return; }
+  var job = findInstallJob(jobId);
+  if (!job) return;
+
+  var jsPDF = window.jspdf.jsPDF;
+  var doc   = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+  var W     = doc.internal.pageSize.getWidth();
+  var H     = doc.internal.pageSize.getHeight();
+  var M     = 14; // margin
+  var CW    = W - M * 2;
+
+  var BLUE       = [13,  71,  161];
+  var BLUE_LIGHT = [232, 240, 254];
+  var GREEN      = [22,  163, 74];
+  var RED        = [220, 38,  38];
+  var SUBGRAY    = [245, 245, 245];
+  var WHITE      = [255, 255, 255];
+
+  // ── Page header (returns startY for table) ──────────────
+  function drawHeader(subtitle) {
+    doc.setFillColor(BLUE[0], BLUE[1], BLUE[2]);
+    doc.rect(M, 10, CW, 11, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(12); doc.setFont('helvetica', 'bold');
+    doc.text('North American Geothermal', M + 3, 17.5);
+    doc.setFontSize(8.5); doc.setFont('helvetica', 'normal');
+    doc.text(subtitle, W - M - 3, 17.5, { align: 'right' });
+
+    var y = 27;
+    doc.setTextColor(20, 20, 20);
+    doc.setFontSize(10); doc.setFont('helvetica', 'bold');
+    doc.text(job.customer_name || '', M, y);
+    doc.setFontSize(8.5); doc.setFont('helvetica', 'normal');
+    if (job.address) doc.text(job.address, M, y + 5);
+
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
+    if (job.job_number) doc.text('Job #' + job.job_number, W - M, y, { align: 'right' });
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
+    if (job.job_date) {
+      var d = new Date(job.job_date);
+      var ds = isNaN(d) ? job.job_date : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      doc.text(ds, W - M, y + 5, { align: 'right' });
+    }
+    doc.setDrawColor(210, 210, 210);
+    doc.line(M, y + 9, W - M, y + 9);
+    return y + 15;
+  }
+
+  // ── Footer ──────────────────────────────────────────────
+  function addFooter() {
+    var fy = H - 8;
+    doc.setTextColor(170, 170, 170); doc.setFontSize(7.5); doc.setFont('helvetica', 'normal');
+    var ts = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    doc.text('Generated ' + ts + '  ·  North American Geothermal', M, fy);
+    doc.text('Page ' + doc.internal.getNumberOfPages(), W - M, fy, { align: 'right' });
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // PAGE 1 — RECEIVABLES
+  // ══════════════════════════════════════════════════════════
+  var startY = drawHeader('Receivables — Payment Schedule');
+
+  // Totals
+  var recvDue = 0, recvPaid = 0;
+  if (job.milestones && job.milestones.length) {
+    job.milestones.forEach(function(m){ recvDue += (m.amount_due||0); recvPaid += (m.amount_paid||0); });
+  } else {
+    recvDue  = job.hcp_total_amount || 0;
+    recvPaid = job.hcp_amount_paid  || 0;
+  }
+  var recvOuts = recvDue - recvPaid;
+
+  doc.setFontSize(10); doc.setFont('helvetica', 'bold');
+  doc.setTextColor(BLUE[0], BLUE[1], BLUE[2]);
+  doc.text('PAYMENT SCHEDULE', M, startY);
+  startY += 5;
+
+  // Build milestone rows
+  var msBody = [];
+  if (job.milestones && job.milestones.length) {
+    job.milestones.forEach(function(m) {
+      var isPaid = (m.amount_paid||0) >= (m.amount_due||0) && (m.amount_due||0) > 0;
+      var bg = isPaid ? [240,253,244] : null;
+      var baseStyle = bg ? { fillColor: bg } : {};
+      msBody.push([
+        { content: m.description || '', styles: baseStyle },
+        { content: m.amount_due ? pdfMoney(m.amount_due) : '—', styles: mergeStyle(baseStyle, { halign: 'right' }) },
+        { content: m.amount_paid ? pdfMoney(m.amount_paid) : '—', styles: mergeStyle(baseStyle, { halign: 'right', textColor: m.amount_paid ? GREEN : [170,170,170] }) },
+        { content: pdfDate(m.date_paid) || '—', styles: mergeStyle(baseStyle, { halign: 'center' }) },
+        { content: m.payment_method || '—', styles: mergeStyle(baseStyle, { halign: 'center' }) },
+        { content: m.notes || '', styles: baseStyle }
+      ]);
+    });
+  } else {
+    msBody.push([{ content: 'No milestones entered yet.', colSpan: 6, styles: { halign: 'center', textColor: [170,170,170], fontStyle: 'italic' } }]);
+  }
+  // Totals row
+  msBody.push([
+    { content: 'TOTAL', styles: { fontStyle: 'bold', fillColor: BLUE_LIGHT } },
+    { content: pdfMoney(recvDue),  styles: { halign: 'right', fontStyle: 'bold', fillColor: BLUE_LIGHT } },
+    { content: pdfMoney(recvPaid), styles: { halign: 'right', fontStyle: 'bold', fillColor: BLUE_LIGHT, textColor: GREEN } },
+    { content: '', colSpan: 3, styles: { fillColor: BLUE_LIGHT } }
+  ]);
+
+  doc.autoTable({
+    head: [['Description / Milestone', 'Amount Due', 'Amount Paid', 'Date Paid', 'Method', 'Notes']],
+    body: msBody,
+    startY: startY,
+    margin: { left: M, right: M },
+    styles: { fontSize: 8.5, cellPadding: { top: 3, right: 4, bottom: 3, left: 4 } },
+    headStyles: { fillColor: BLUE, textColor: WHITE, fontStyle: 'bold', fontSize: 8.5 },
+    columnStyles: {
+      0: { cellWidth: 72 },
+      1: { cellWidth: 25, halign: 'right' },
+      2: { cellWidth: 25, halign: 'right' },
+      3: { cellWidth: 22, halign: 'center' },
+      4: { cellWidth: 20, halign: 'center' },
+      5: { cellWidth: 'auto' }
+    }
+  });
+
+  // Outstanding callout
+  var finalY = doc.lastAutoTable.finalY + 6;
+  if (recvOuts > 0) {
+    doc.setFillColor(255, 245, 245);
+    doc.roundedRect(M, finalY - 1, CW, 9, 2, 2, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5);
+    doc.setTextColor(RED[0], RED[1], RED[2]);
+    doc.text('Outstanding Balance:  $' + pdfMoney(recvOuts), M + 4, finalY + 5.5);
+  } else if (recvDue > 0) {
+    doc.setFillColor(240, 253, 244);
+    doc.roundedRect(M, finalY - 1, CW, 9, 2, 2, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5);
+    doc.setTextColor(GREEN[0], GREEN[1], GREEN[2]);
+    doc.text('Fully Paid  ✓', M + 4, finalY + 5.5);
+  }
+
+  addFooter();
+
+  // ══════════════════════════════════════════════════════════
+  // PAGE 2 — PAYABLES
+  // ══════════════════════════════════════════════════════════
+  doc.addPage();
+  startY = drawHeader('Payables');
+
+  doc.setFontSize(10); doc.setFont('helvetica', 'bold');
+  doc.setTextColor(BLUE[0], BLUE[1], BLUE[2]);
+  doc.text('PAYABLES BY CATEGORY', M, startY);
+  startY += 5;
+
+  var payBody  = [];
+  var grandDue = 0, grandPaid = 0;
+
+  PAYABLE_CATS.forEach(function(cat) {
+    var items = (job.payables || []).filter(function(p){ return p.category === cat; });
+    if (!items.length) return;
+
+    var catDue = 0, catPaid = 0, firstRow = true;
+    items.forEach(function(p) {
+      catDue  += (p.total_amount || 0);
+      catPaid += (p.amount_paid  || 0);
+      var outs = (p.total_amount||0) - (p.amount_paid||0);
+      payBody.push([
+        { content: firstRow ? cat : '', styles: firstRow ? { fontStyle: 'bold', textColor: BLUE } : { textColor: [200,200,200] } },
+        p.vendor || '',
+        { content: p.total_amount ? pdfMoney(p.total_amount) : '—', styles: { halign: 'right' } },
+        { content: p.amount_paid  ? pdfMoney(p.amount_paid)  : '—', styles: { halign: 'right', textColor: p.amount_paid ? GREEN : [170,170,170] } },
+        { content: outs > 0 ? pdfMoney(outs) : '—', styles: { halign: 'right', textColor: outs > 0 ? RED : [170,170,170] } },
+        p.notes || ''
+      ]);
+      firstRow = false;
+    });
+
+    // Category subtotal
+    var catOuts = catDue - catPaid;
+    payBody.push([
+      { content: '', styles: { fillColor: SUBGRAY } },
+      { content: 'Subtotals', styles: { fontStyle: 'italic', fillColor: SUBGRAY, textColor: [100,100,100] } },
+      { content: pdfMoney(catDue),  styles: { halign: 'right', fontStyle: 'bold', fillColor: SUBGRAY } },
+      { content: pdfMoney(catPaid), styles: { halign: 'right', fontStyle: 'bold', fillColor: SUBGRAY, textColor: GREEN } },
+      { content: pdfMoney(catOuts), styles: { halign: 'right', fontStyle: 'bold', fillColor: SUBGRAY, textColor: catOuts > 0 ? RED : GREEN } },
+      { content: '', styles: { fillColor: SUBGRAY } }
+    ]);
+
+    grandDue  += catDue;
+    grandPaid += catPaid;
+  });
+
+  if (!payBody.length) {
+    payBody.push([{ content: 'No payables entered yet.', colSpan: 6, styles: { halign: 'center', textColor: [170,170,170], fontStyle: 'italic' } }]);
+  }
+
+  // Grand total
+  var grandOuts = grandDue - grandPaid;
+  payBody.push([
+    { content: 'GRAND TOTAL', colSpan: 2, styles: { fontStyle: 'bold', fillColor: BLUE, textColor: WHITE } },
+    { content: pdfMoney(grandDue),  styles: { halign: 'right', fontStyle: 'bold', fillColor: BLUE, textColor: WHITE } },
+    { content: pdfMoney(grandPaid), styles: { halign: 'right', fontStyle: 'bold', fillColor: BLUE, textColor: WHITE } },
+    { content: pdfMoney(grandOuts), styles: { halign: 'right', fontStyle: 'bold', fillColor: BLUE, textColor: WHITE } },
+    { content: '', styles: { fillColor: BLUE } }
+  ]);
+
+  doc.autoTable({
+    head: [['Category', 'Vendor', 'Total Due', 'Paid', 'Outstanding', 'Notes']],
+    body: payBody,
+    startY: startY,
+    margin: { left: M, right: M },
+    styles: { fontSize: 8.5, cellPadding: { top: 3, right: 4, bottom: 3, left: 4 } },
+    headStyles: { fillColor: BLUE, textColor: WHITE, fontStyle: 'bold', fontSize: 8.5 },
+    columnStyles: {
+      0: { cellWidth: 35 },
+      1: { cellWidth: 58 },
+      2: { cellWidth: 25, halign: 'right' },
+      3: { cellWidth: 22, halign: 'right' },
+      4: { cellWidth: 25, halign: 'right' },
+      5: { cellWidth: 'auto' }
+    }
+  });
+
+  // Outstanding callout
+  finalY = doc.lastAutoTable.finalY + 6;
+  if (grandOuts > 0) {
+    doc.setFillColor(255, 245, 245);
+    doc.roundedRect(M, finalY - 1, CW, 9, 2, 2, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5);
+    doc.setTextColor(RED[0], RED[1], RED[2]);
+    doc.text('Total Outstanding:  $' + pdfMoney(grandOuts), M + 4, finalY + 5.5);
+  } else if (grandDue > 0) {
+    doc.setFillColor(240, 253, 244);
+    doc.roundedRect(M, finalY - 1, CW, 9, 2, 2, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5);
+    doc.setTextColor(GREEN[0], GREEN[1], GREEN[2]);
+    doc.text('All Paid  ✓', M + 4, finalY + 5.5);
+  }
+
+  addFooter();
+
+  // ── Save ────────────────────────────────────────────────
+  var safeName = (job.customer_name || 'Job').replace(/[^a-zA-Z0-9 ]/g, '').trim().replace(/ +/g, '_');
+  var jobNum   = job.job_number ? '_Job' + job.job_number : '';
+  doc.save(safeName + jobNum + '_Payables_Receivables.pdf');
+}
 
 // ══════════════════════════════════════════════════════════
 // BOOTSTRAP
