@@ -2107,11 +2107,92 @@ function generateJobPDF(jobId) {
     doc.setTextColor(RED[0], RED[1], RED[2]);
     doc.text('Outstanding Balance:  $' + pdfMoney(recvOuts), M + 4, finalY + 5.5);
   } else if (recvDue > 0) {
+    // ── Status badge ──────────────────────────────────────
     doc.setFillColor(240, 253, 244);
     doc.roundedRect(M, finalY - 1, CW, 9, 2, 2, 'F');
     doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5);
     doc.setTextColor(GREEN[0], GREEN[1], GREEN[2]);
-    doc.text('Fully Paid  ✓', M + 4, finalY + 5.5);
+    doc.text('Paid in Full  ✓', M + 4, finalY + 5.5);
+
+    // ── Legal paid-in-full certificate ────────────────────
+    // Find the most recent payment date from milestones
+    var MONTHS_LONG = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    var lastPaidStr = '';
+    if (job.milestones && job.milestones.length) {
+      job.milestones.forEach(function(m){ if (m.date_paid && m.date_paid > lastPaidStr) lastPaidStr = m.date_paid; });
+    }
+    var certDate;
+    if (lastPaidStr) {
+      var dp = lastPaidStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      certDate = dp ? MONTHS_LONG[parseInt(dp[2],10)-1] + ' ' + parseInt(dp[3],10) + ', ' + dp[1]
+                   : new Date(lastPaidStr).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    } else {
+      certDate = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    }
+
+    // Pre-render text to measure height
+    var certTextW = CW - 12;
+    doc.setFontSize(8.5); doc.setFont('helvetica', 'normal');
+    var para1 = 'This document certifies that North American Geothermal has received payment in full for all ' +
+      'services rendered in connection with the geothermal installation project referenced above. ' +
+      'The total contract amount of $' + pdfMoney(recvDue) + ' has been received in its entirety as of ' + certDate + '.';
+    var para2 = 'This letter serves as an official acknowledgment of complete payment and may be submitted ' +
+      'for utility rebate applications, equipment manufacturer warranty registration, financing closings, ' +
+      'and all related incentive program documentation.';
+    var lines1 = doc.splitTextToSize(para1, certTextW);
+    var lines2 = doc.splitTextToSize(para2, certTextW);
+    var lineH  = 4.6;
+    var boxH   = 10 + 8 + (lines1.length * lineH) + 5 + (lines2.length * lineH) + 10 + 14;
+
+    var boxY   = finalY + 16;
+    // If box would overflow the page, add a page break
+    if (boxY + boxH > H - 20) { doc.addPage(); startY = drawHeader('Receivables — Payment Certificate'); boxY = startY; }
+
+    // Outer border
+    doc.setDrawColor(BLUE[0], BLUE[1], BLUE[2]);
+    doc.setLineWidth(0.6);
+    doc.roundedRect(M, boxY, CW, boxH, 2, 2, 'S');
+
+    // Top accent bar
+    doc.setFillColor(BLUE[0], BLUE[1], BLUE[2]);
+    doc.rect(M, boxY, CW, 0.8, 'F');
+
+    var ty = boxY + 9;
+    var tx = M + 6;
+
+    // Certificate title
+    doc.setFontSize(10); doc.setFont('helvetica', 'bold');
+    doc.setTextColor(BLUE[0], BLUE[1], BLUE[2]);
+    doc.text('PAYMENT IN FULL ACKNOWLEDGMENT', M + CW / 2, ty, { align: 'center' });
+    ty += 3;
+
+    // Underline
+    doc.setDrawColor(BLUE[0], BLUE[1], BLUE[2]);
+    doc.setLineWidth(0.3);
+    doc.line(tx, ty, M + CW - 6, ty);
+    ty += 5;
+
+    // Body paragraphs
+    doc.setFontSize(8.5); doc.setFont('helvetica', 'normal');
+    doc.setTextColor(25, 25, 25);
+    doc.text(lines1, tx, ty);
+    ty += lines1.length * lineH + 5;
+    doc.text(lines2, tx, ty);
+    ty += lines2.length * lineH + 10;
+
+    // Date
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5);
+    doc.setTextColor(60, 60, 60);
+    doc.text('Date of Final Payment:', tx, ty);
+    doc.setFont('helvetica', 'normal');
+    doc.text(certDate, tx + 45, ty);
+
+    // Signature line
+    var sigY = boxY + boxH - 10;
+    doc.setDrawColor(100, 100, 100); doc.setLineWidth(0.3);
+    doc.line(tx, sigY, tx + 75, sigY);
+    doc.setFontSize(7.5); doc.setTextColor(110, 110, 110); doc.setFont('helvetica', 'normal');
+    doc.text('Authorized Representative — North American Geothermal', tx, sigY + 4);
   }
 
   addFooter();
