@@ -121,6 +121,10 @@ tr.confirm-row:last-child td{border-bottom:none;}
 .arc-btn:hover{border-color:#dc2626;color:#dc2626;background:#fff5f5;}
 .pdf-btn{font-size:11px;padding:3px 10px;border:0.5px solid #bcd;border-radius:6px;background:#f0f6ff;color:#1e6fb5;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;}
 .pdf-btn:hover{background:#ddeeff;border-color:#1e6fb5;}
+.add-job-btn{font-size:12px;padding:5px 14px;border:none;border-radius:7px;background:#0d47a1;color:#fff;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;font-weight:600;}
+.add-job-btn:hover{background:#1565c0;}
+.aj-input{width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #ddd;border-radius:7px;font-family:inherit;font-size:13px;color:#1a1a1a;outline:none;}
+.aj-input:focus{border-color:#93c5fd;box-shadow:0 0 0 2px #dbeafe;}
 .arc-confirm{font-size:11px;color:#92400e;font-weight:500;flex-shrink:0;}
 .arc-yes{font-size:11px;padding:3px 10px;border:none;border-radius:6px;background:#dc2626;color:#fff;cursor:pointer;font-family:inherit;margin-right:4px;}
 .arc-no{font-size:11px;padding:3px 10px;border:0.5px solid #ddd;border-radius:6px;background:#fff;color:#888;cursor:pointer;font-family:inherit;}
@@ -281,12 +285,12 @@ tr.confirm-row:last-child td{border-bottom:none;}
     <div class="topbar-logo">NAGeo <span>Ops</span></div>
     <nav class="tab-nav">
       <button class="tab-btn active" id="tab-btn-invoices" onclick="switchTab('invoices')">Outstanding Invoices</button>
-      <button class="tab-btn" id="tab-btn-install" onclick="switchTab('install')">Install Jobs</button>
+      <button class="tab-btn" id="tab-btn-install" onclick="switchTab('install')">Cash Flow</button>
       <button class="tab-btn" id="tab-btn-archive" onclick="switchTab('archive')">Archive</button>
     </nav>
     <div class="topbar-right">
       <button class="sync-btn" id="sync-btn-invoices" onclick="syncInvoices()">&#8635; Sync HCP</button>
-      <button class="sync-btn" id="sync-btn-install" style="display:none" onclick="syncInstallJobs()">&#8635; Sync Install Jobs</button>
+      <button class="sync-btn" id="sync-btn-install" style="display:none" onclick="syncInstallJobs()">&#8635; Sync HCP</button>
       <span class="last-synced" id="last-synced"></span>
       <div class="topbar-user">Signed in as <strong id="topbar-name"></strong></div>
       <button class="logout-btn" onclick="doLogout()">Sign out</button>
@@ -353,14 +357,14 @@ tr.confirm-row:last-child td{border-bottom:none;}
     </div>
   </div>
 
-  <!-- TAB: Install Jobs -->
+  <!-- TAB: Cash Flow -->
   <div class="main" id="view-install" style="display:none">
     <div id="install-error-banner" class="error-banner" style="display:none;"></div>
     <div class="stats" id="install-stats">
       <div class="stat">
-        <div class="stat-label">Active install jobs</div>
+        <div class="stat-label">Active jobs</div>
         <div class="stat-value stat-value-lg" id="is-count">—</div>
-        <div class="stat-sub">with Install tag</div>
+        <div class="stat-sub">tracked</div>
       </div>
       <div class="stat">
         <div class="stat-label">Receivables outstanding</div>
@@ -381,16 +385,17 @@ tr.confirm-row:last-child td{border-bottom:none;}
     <div class="install-header">
       <span id="install-job-count" style="font-size:12px;color:#888;"></span>
       <input type="text" class="install-search" id="install-search" placeholder="Search jobs..." oninput="renderInstallJobs()">
+      <button class="add-job-btn" onclick="openAddJobModal()">+ Add Job</button>
     </div>
     <div id="install-job-list">
-      <div class="loading-msg">Loading install jobs…</div>
+      <div class="loading-msg">Loading…</div>
     </div>
   </div>
 
   <!-- TAB: Archive -->
   <div class="main" id="view-archive" style="display:none">
     <div class="archive-header">
-      <div class="section-title">Archived Install Jobs</div>
+      <div class="section-title">Archived Jobs</div>
       <span style="font-size:12px;color:#888;">Jobs moved here are fully preserved.</span>
     </div>
     <div id="archive-job-list">
@@ -409,6 +414,42 @@ tr.confirm-row:last-child td{border-bottom:none;}
     <div class="modal-list" id="hidden-modal-list"></div>
     <div class="modal-footer">
       <button class="modal-close" onclick="closeHiddenModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Job Modal -->
+<div class="modal-bg" id="add-job-modal">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-title">Add Job</div>
+    <div class="modal-sub">Manually add a customer to Cash Flow tracking.</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:14px;">
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        <label style="font-size:11px;font-weight:600;color:#555;">Customer Name <span style="color:#dc2626">*</span></label>
+        <input id="aj-name" class="aj-input" type="text" placeholder="e.g. John & Jane Smith" />
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        <label style="font-size:11px;font-weight:600;color:#555;">Address</label>
+        <input id="aj-address" class="aj-input" type="text" placeholder="e.g. 123 Main St, Arlington, VA 22201" />
+      </div>
+      <div style="display:flex;gap:10px;">
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;">
+          <label style="font-size:11px;font-weight:600;color:#555;">Job / Customer ID</label>
+          <input id="aj-jobnum" class="aj-input" type="text" placeholder="e.g. 22833" />
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;">
+          <label style="font-size:11px;font-weight:600;color:#555;">Job Date</label>
+          <input id="aj-date" class="aj-input" type="date" />
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        <label style="font-size:11px;font-weight:600;color:#555;">Notes</label>
+        <input id="aj-notes" class="aj-input" type="text" placeholder="Any internal notes..." />
+      </div>
+    </div>
+    <div class="modal-footer" style="margin-top:18px;">
+      <button class="modal-close" onclick="closeAddJobModal()">Cancel</button>
+      <button class="modal-import-btn" id="aj-submit-btn" onclick="submitAddJob()">Add Job</button>
     </div>
   </div>
 </div>
@@ -792,7 +833,7 @@ async function syncInstallJobs() {
     var hcpJobs = data.jobs || [];
     if (hcpJobs.length === 0) {
       showToast('No jobs with "Install" tag found in HCP. Check the tag name.');
-      installSyncing = false; btn.disabled = false; btn.innerHTML = '&#8635; Sync Install Jobs'; return;
+      installSyncing = false; btn.disabled = false; btn.innerHTML = '&#8635; Sync HCP'; return;
     }
 
     // Upsert into Supabase (only update HCP fields, leave notes/archived alone)
@@ -823,7 +864,7 @@ async function syncInstallJobs() {
     showError('install-error-banner', e.message || 'Sync failed.');
   }
 
-  installSyncing = false; btn.disabled = false; btn.innerHTML = '&#8635; Sync Install Jobs';
+  installSyncing = false; btn.disabled = false; btn.innerHTML = '&#8635; Sync HCP';
 }
 
 // ══════════════════════════════════════════════════════════
@@ -903,7 +944,7 @@ function renderInstallJobs() {
   var countEl = document.getElementById('install-job-count');
   if (countEl) countEl.textContent = list.length + ' job' + (list.length !== 1 ? 's' : '');
   if (!list.length) {
-    el.innerHTML = '<div class="empty">' + (installJobs.length ? 'No jobs match your search.' : 'No install jobs yet. Click "Sync Install Jobs" to pull from HCP.') + '</div>';
+    el.innerHTML = '<div class="empty">' + (installJobs.length ? 'No jobs match your search.' : 'No jobs yet. Click "+ Add Job" to add one manually, or "Sync HCP" to pull from HousecallPro.') + '</div>';
     return;
   }
   el.innerHTML = list.map(function(job){ return renderJobCard(job, false); }).join('');
@@ -995,7 +1036,7 @@ async function unarchiveJob(jobId) {
   await logActivity(jobId, 'Job unarchived', '');
   installJobsLoaded = false;
   await loadInstallJobs();
-  showToast('Job restored to Install Jobs.');
+  showToast('Job restored to Cash Flow.');
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1955,6 +1996,68 @@ function showToast(msg) {
 
 function showError(bannerId, msg) { var el = document.getElementById(bannerId); if(el){ el.textContent='⚠ '+msg; el.style.display='block'; } }
 function hideError(bannerId) { var el = document.getElementById(bannerId); if(el) el.style.display='none'; }
+
+// ══════════════════════════════════════════════════════════
+// ADD JOB MANUALLY
+// ══════════════════════════════════════════════════════════
+function openAddJobModal() {
+  document.getElementById('aj-name').value    = '';
+  document.getElementById('aj-address').value = '';
+  document.getElementById('aj-jobnum').value  = '';
+  document.getElementById('aj-date').value    = '';
+  document.getElementById('aj-notes').value   = '';
+  document.getElementById('aj-submit-btn').disabled   = false;
+  document.getElementById('aj-submit-btn').textContent = 'Add Job';
+  document.getElementById('add-job-modal').classList.add('open');
+  setTimeout(function(){ document.getElementById('aj-name').focus(); }, 80);
+}
+
+function closeAddJobModal() {
+  document.getElementById('add-job-modal').classList.remove('open');
+}
+
+async function submitAddJob() {
+  var name = document.getElementById('aj-name').value.trim();
+  if (!name) { document.getElementById('aj-name').focus(); showToast('Customer name is required.'); return; }
+
+  var btn = document.getElementById('aj-submit-btn');
+  btn.disabled = true; btn.textContent = 'Adding…';
+
+  // Generate a unique manual ID so the UNIQUE NOT NULL constraint is satisfied
+  var manualId = 'manual_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+
+  var newJob = {
+    hcp_job_id:    manualId,
+    customer_name: name,
+    address:       document.getElementById('aj-address').value.trim(),
+    job_number:    document.getElementById('aj-jobnum').value.trim(),
+    job_date:      document.getElementById('aj-date').value || '',
+    notes:         document.getElementById('aj-notes').value.trim(),
+    hcp_total_amount: 0, hcp_amount_paid: 0, hcp_outstanding: 0,
+    archived: false, sort_order: 0
+  };
+
+  try {
+    var ins = await sb.from('install_jobs').insert(newJob).select().single();
+    if (ins.error) throw new Error(ins.error.message);
+    var job = ins.data;
+    job.payables   = [];
+    job.milestones = [];
+    job.activity   = [];
+    installJobs.push(job);
+    installJobs.sort(function(a,b){ return (a.customer_name||'').localeCompare(b.customer_name||''); });
+    closeAddJobModal();
+    renderInstallJobs();
+    updateInstallStats();
+    showToast(name + ' added to Cash Flow.');
+  } catch(e) {
+    showToast('Error: ' + e.message);
+    btn.disabled = false; btn.textContent = 'Add Job';
+  }
+}
+
+document.getElementById('add-job-modal').addEventListener('click', function(e){ if (e.target === this) closeAddJobModal(); });
+document.getElementById('aj-name').addEventListener('keydown', function(e){ if (e.key === 'Enter') submitAddJob(); });
 
 // ══════════════════════════════════════════════════════════
 // PDF EXPORT
