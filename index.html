@@ -434,13 +434,17 @@ tr.confirm-row:last-child td{border-bottom:none;}
       </div>
       <div style="display:flex;gap:10px;">
         <div style="display:flex;flex-direction:column;gap:4px;flex:1;">
-          <label style="font-size:11px;font-weight:600;color:#555;">Job / Customer ID</label>
-          <input id="aj-jobnum" class="aj-input" type="text" placeholder="e.g. 22833" />
+          <label style="font-size:11px;font-weight:600;color:#555;">Customer ID <span style="font-weight:400;color:#aaa;">(5-digit)</span></label>
+          <input id="aj-custid" class="aj-input" type="text" placeholder="e.g. 22833" maxlength="5" />
         </div>
         <div style="display:flex;flex-direction:column;gap:4px;flex:1;">
-          <label style="font-size:11px;font-weight:600;color:#555;">Job Date</label>
-          <input id="aj-date" class="aj-input" type="date" />
+          <label style="font-size:11px;font-weight:600;color:#555;">Job Number</label>
+          <input id="aj-jobnum" class="aj-input" type="text" placeholder="e.g. 56490" />
         </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        <label style="font-size:11px;font-weight:600;color:#555;">Job Date</label>
+        <input id="aj-date" class="aj-input" type="date" />
       </div>
       <div style="display:flex;flex-direction:column;gap:4px;">
         <label style="font-size:11px;font-weight:600;color:#555;">Notes</label>
@@ -979,6 +983,7 @@ function renderJobCard(job, forArchive) {
   html += '<div class="job-info"><div class="job-name">' + esc(job.customer_name||'Unknown') + '</div>';
   if (job.address) html += '<div class="job-addr">' + esc(job.address) + '</div>';
   html += '</div>';
+  if (job.customer_id) html += '<span class="job-num-chip" title="Customer ID">ID ' + esc(job.customer_id) + '</span>';
   if (job.job_number) html += '<span class="job-num-chip">Job #' + esc(job.job_number) + '</span>';
   html += '<div class="job-fin">';
   html += '<div class="job-fin-item"><div class="job-fin-label">Recv Owed</div><div class="job-fin-val fin-recv">' + fmtMoney(f.recvOuts) + '</div></div>';
@@ -2003,6 +2008,7 @@ function hideError(bannerId) { var el = document.getElementById(bannerId); if(el
 function openAddJobModal() {
   document.getElementById('aj-name').value    = '';
   document.getElementById('aj-address').value = '';
+  document.getElementById('aj-custid').value  = '';
   document.getElementById('aj-jobnum').value  = '';
   document.getElementById('aj-date').value    = '';
   document.getElementById('aj-notes').value   = '';
@@ -2029,6 +2035,7 @@ async function submitAddJob() {
   var newJob = {
     hcp_job_id:    manualId,
     customer_name: name,
+    customer_id:   document.getElementById('aj-custid').value.trim(),
     address:       document.getElementById('aj-address').value.trim(),
     job_number:    document.getElementById('aj-jobnum').value.trim(),
     job_date:      document.getElementById('aj-date').value || '',
