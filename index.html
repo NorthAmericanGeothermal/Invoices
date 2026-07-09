@@ -94,8 +94,13 @@ tr.confirm-row:last-child td{border-bottom:none;}
 
 /* ── Install Jobs ── */
 .install-header{display:flex;align-items:center;gap:10px;margin-bottom:1.25rem;flex-wrap:wrap;}
-.install-search{font-size:12px;padding:6px 12px;border:0.5px solid #ddd;border-radius:8px;background:#f9f9f7;font-family:inherit;width:220px;margin-left:auto;}
+.install-search{font-size:12px;padding:6px 12px;border:0.5px solid #ddd;border-radius:8px;background:#f9f9f7;font-family:inherit;width:200px;margin-left:auto;}
 .install-search:focus{outline:none;border-color:#2563eb;}
+.install-sort{font-size:12px;padding:6px 10px;border:0.5px solid #ddd;border-radius:8px;background:#f9f9f7;font-family:inherit;color:#444;cursor:pointer;}
+.install-sort:focus{outline:none;border-color:#2563eb;}
+.job-date-input{font-size:11px;color:#888;border:none;background:transparent;font-family:inherit;cursor:pointer;padding:0;margin-top:2px;width:110px;}
+.job-date-input:focus{outline:none;color:#2563eb;}
+.job-date-label{font-size:10px;color:#bbb;margin-right:2px;}
 
 /* ── Job Card ── */
 .job-card{background:#fff;border:0.5px solid #e5e5e5;border-radius:12px;margin-bottom:10px;overflow:hidden;}
@@ -391,6 +396,17 @@ tr.confirm-row:last-child td{border-bottom:none;}
     </div>
     <div class="install-header">
       <span id="install-job-count" style="font-size:12px;color:#888;"></span>
+      <select class="install-sort" id="install-sort" onchange="installSortKey=this.value;renderInstallJobs()">
+        <option value="date-desc">Date (newest first)</option>
+        <option value="date-asc">Date (oldest first)</option>
+        <option value="name-asc">Name A–Z</option>
+        <option value="recv-desc">Recv Owed (most)</option>
+        <option value="recv-asc">Recv Owed (least)</option>
+        <option value="pay-desc">Pay Owed (most)</option>
+        <option value="pay-asc">Pay Owed (least)</option>
+        <option value="net-desc">Net (highest)</option>
+        <option value="net-asc">Net (lowest)</option>
+      </select>
       <input type="text" class="install-search" id="install-search" placeholder="Search jobs..." oninput="renderInstallJobs()">
       <button class="add-job-btn" onclick="openAddJobModal()">+ Add Job</button>
     </div>
@@ -573,6 +589,7 @@ var installJobs = [];       // active jobs with payables/milestones/activity
 var archiveJobs = [];       // archived jobs
 var installJobsLoaded = false;
 var installSyncing = false;
+var installSortKey = 'date-desc';
 var jobOpenSet = new Set(); // job IDs that are expanded
 var catOpenSet = new Set(); // "jobId:catId" that are expanded
 var pendingArchiveId = null;
@@ -984,8 +1001,26 @@ function renderInstallJobs() {
   var q = (document.getElementById('install-search') ? document.getElementById('install-search').value : '').toLowerCase();
   var list = installJobs.filter(function(j) {
     if (!q) return true;
-    return ((j.customer_name||'')+' '+(j.address||'')+' '+(j.job_number||'')).toLowerCase().includes(q);
+    return ((j.customer_name||'')+' '+(j.address||'')+' '+(j.job_number||'')+' '+(j.customer_id||'')).toLowerCase().includes(q);
   });
+
+  // Sort
+  list.sort(function(a, b) {
+    var fa = getJobFinancials(a), fb = getJobFinancials(b);
+    switch (installSortKey) {
+      case 'name-asc':   return (a.customer_name||'').localeCompare(b.customer_name||'');
+      case 'date-asc':   return new Date(a.job_date||0) - new Date(b.job_date||0);
+      case 'date-desc':  return new Date(b.job_date||0) - new Date(a.job_date||0);
+      case 'recv-desc':  return fb.recvOuts - fa.recvOuts;
+      case 'recv-asc':   return fa.recvOuts - fb.recvOuts;
+      case 'pay-desc':   return fb.payOuts  - fa.payOuts;
+      case 'pay-asc':    return fa.payOuts  - fb.payOuts;
+      case 'net-desc':   return fb.net - fa.net;
+      case 'net-asc':    return fa.net - fb.net;
+      default:           return (a.customer_name||'').localeCompare(b.customer_name||'');
+    }
+  });
+
   var el = document.getElementById('install-job-list');
   var countEl = document.getElementById('install-job-count');
   if (countEl) countEl.textContent = list.length + ' job' + (list.length !== 1 ? 's' : '');
@@ -1024,6 +1059,11 @@ function renderJobCard(job, forArchive) {
   html += '<div class="job-avatar">' + esc(initials) + '</div>';
   html += '<div class="job-info"><div class="job-name">' + esc(job.customer_name||'Unknown') + '</div>';
   if (job.address) html += '<div class="job-addr">' + esc(job.address) + '</div>';
+  html += '<div style="display:flex;align-items:center;gap:2px;margin-top:2px;">';
+  html += '<span class="job-date-label">Start:</span>';
+  html += '<input type="date" class="job-date-input" value="' + esc((job.job_date||'').slice(0,10)) + '" ';
+  html += 'onclick="event.stopPropagation()" onchange="event.stopPropagation();saveJobDate(\'' + id + '\',this.value)" />';
+  html += '</div>';
   html += '</div>';
   if (job.customer_id) html += '<span class="job-num-chip" title="Customer ID">ID ' + esc(job.customer_id) + '</span>';
   if (job.job_number) html += '<span class="job-num-chip">Job #' + esc(job.job_number) + '</span>';
@@ -2044,6 +2084,16 @@ function showToast(msg) {
 
 function showError(bannerId, msg) { var el = document.getElementById(bannerId); if(el){ el.textContent='⚠ '+msg; el.style.display='block'; } }
 function hideError(bannerId) { var el = document.getElementById(bannerId); if(el) el.style.display='none'; }
+
+// ══════════════════════════════════════════════════════════
+// JOB DATE
+// ══════════════════════════════════════════════════════════
+async function saveJobDate(jobId, dateVal) {
+  var job = findInstallJob(jobId) || archiveJobs.find(function(j){ return j.id === jobId; });
+  if (!job) return;
+  job.job_date = dateVal;
+  await sb.from('install_jobs').update({ job_date: dateVal, updated_at: new Date().toISOString() }).eq('id', jobId);
+}
 
 // ══════════════════════════════════════════════════════════
 // DELETE JOB (3-step: arm → modal → type-to-confirm)
