@@ -137,6 +137,26 @@ tr.confirm-row:last-child td{border-bottom:none;}
 .del-forever-btn:disabled{background:#fca5a5;cursor:not-allowed;}
 .aj-input{width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #ddd;border-radius:7px;font-family:inherit;font-size:13px;color:#1a1a1a;outline:none;}
 .aj-input:focus{border-color:#93c5fd;box-shadow:0 0 0 2px #dbeafe;}
+/* ── HCP Payments ── */
+.hcp-payments-block{margin:6px 16px 2px;border:1px solid #d1fae5;border-radius:7px;overflow:hidden;}
+.hcp-payments-title{font-size:11px;font-weight:700;color:#065f46;background:#ecfdf5;padding:5px 10px;letter-spacing:.02em;}
+.hcp-pmt-table{width:100%;border-collapse:collapse;font-size:12px;}
+.hcp-pmt-table th{text-align:left;padding:4px 10px;color:#6b7280;font-weight:600;background:#f9fafb;font-size:11px;}
+.hcp-pmt-table th:nth-child(2){text-align:right;}
+.hcp-pmt-table td{padding:4px 10px;color:#374151;border-top:1px solid #f3f4f6;}
+.hcp-pmt-table tr:first-child td{border-top:none;}
+/* ── Merged Job Card ── */
+.merged-badge{font-size:10px;color:#64748b;font-weight:500;background:#e2e8f0;border-radius:9px;padding:1px 7px;margin-left:4px;vertical-align:middle;}
+.merge-prompt{background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:12px 16px;margin-bottom:10px;display:flex;align-items:flex-start;gap:10px;}
+.merge-prompt-icon{font-size:18px;flex-shrink:0;margin-top:1px;}
+.merge-prompt-body{flex:1;}
+.merge-prompt-title{font-size:13px;font-weight:700;color:#92400e;margin-bottom:3px;}
+.merge-prompt-detail{font-size:12px;color:#78350f;margin-bottom:8px;line-height:1.5;}
+.merge-prompt-btns{display:flex;gap:8px;}
+.merge-yes-btn{font-size:12px;padding:4px 14px;border:none;border-radius:6px;background:#16a34a;color:#fff;cursor:pointer;font-family:inherit;font-weight:600;}
+.merge-yes-btn:hover{background:#15803d;}
+.merge-no-btn{font-size:12px;padding:4px 14px;border:0.5px solid #ddd;border-radius:6px;background:#fff;color:#64748b;cursor:pointer;font-family:inherit;}
+.merge-no-btn:hover{background:#f1f5f9;}
 .arc-confirm{font-size:11px;color:#92400e;font-weight:500;flex-shrink:0;}
 .arc-yes{font-size:11px;padding:3px 10px;border:none;border-radius:6px;background:#dc2626;color:#fff;cursor:pointer;font-family:inherit;margin-right:4px;}
 .arc-no{font-size:11px;padding:3px 10px;border:0.5px solid #ddd;border-radius:6px;background:#fff;color:#888;cursor:pointer;font-family:inherit;}
@@ -597,12 +617,14 @@ var csvPendingJobId = null;
 var csvPendingRows = [];
 var csvPendingType  = 'payables'; // 'payables' | 'receivables'
 var pendingWorkbook = null;
+var mergeDecisions = {};    // { 'customerId': true/false } — should multi-job customers be merged?
 
 // ══════════════════════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════════════════════
 async function init() {
   loadIgnored();
+  loadMergeDecisions();
   var saved = localStorage.getItem('hcpinv_user');
   if (saved) {
     try { currentUser = JSON.parse(saved); } catch(e) {}
@@ -913,6 +935,7 @@ async function syncInstallJobs() {
         hcp_total_amount: cD(j.hcp_total_amount),
         hcp_amount_paid:  cD(j.hcp_amount_paid),
         hcp_outstanding:  cD(j.hcp_outstanding),
+        hcp_payments:     j.hcp_payments || [],
         updated_at: new Date().toISOString()
       };
     });
@@ -979,8 +1002,33 @@ async function loadInstallJobs() {
 }
 
 // ══════════════════════════════════════════════════════════
+// MERGE DECISIONS — persist per-customer grouping choice
+// ══════════════════════════════════════════════════════════
+function loadMergeDecisions() {
+  try { var s = localStorage.getItem('nageo_merge_decisions'); if (s) mergeDecisions = JSON.parse(s); } catch(e) {}
+}
+function saveMergeDecisions() {
+  try { localStorage.setItem('nageo_merge_decisions', JSON.stringify(mergeDecisions)); } catch(e) {}
+}
+function setMergeDecision(customerId, shouldMerge) {
+  mergeDecisions[customerId] = shouldMerge;
+  saveMergeDecisions();
+  renderInstallJobs();
+}
+
+// ══════════════════════════════════════════════════════════
 // INSTALL JOBS — Render
 // ══════════════════════════════════════════════════════════
+function getMergedFinancials(jobs) {
+  var merged = { recvDue:0, recvPaid:0, recvOuts:0, payDue:0, payPaid:0, payOuts:0, net:0 };
+  jobs.forEach(function(job) {
+    var f = getJobFinancials(job);
+    merged.recvDue  += f.recvDue;  merged.recvPaid += f.recvPaid;  merged.recvOuts += f.recvOuts;
+    merged.payDue   += f.payDue;   merged.payPaid  += f.payPaid;   merged.payOuts  += f.payOuts;
+    merged.net      += f.net;
+  });
+  return merged;
+}
 function updateInstallStats() {
   var totalRecvOuts = 0, totalPayOuts = 0;
   installJobs.forEach(function(job) {
@@ -1004,20 +1052,31 @@ function renderInstallJobs() {
     return ((j.customer_name||'')+' '+(j.address||'')+' '+(j.job_number||'')+' '+(j.customer_id||'')).toLowerCase().includes(q);
   });
 
-  // Sort
-  list.sort(function(a, b) {
-    var fa = getJobFinancials(a), fb = getJobFinancials(b);
+  // Group by customer_id (5-digit IDs only)
+  var groupMap = {}, groupOrder = [];
+  list.forEach(function(job) {
+    var key = (job.customer_id && /^\d{5}$/.test(job.customer_id)) ? job.customer_id : ('_solo_' + job.id);
+    if (!groupMap[key]) { groupMap[key] = []; groupOrder.push(key); }
+    groupMap[key].push(job);
+  });
+  var groups = groupOrder.map(function(k){ return groupMap[k]; });
+
+  // Sort groups using merged financials
+  groups.sort(function(ga, gb) {
+    var fa = getMergedFinancials(ga), fb = getMergedFinancials(gb);
+    var dateA = ga.map(function(j){ return j.job_date||''; }).sort()[0] || '';
+    var dateB = gb.map(function(j){ return j.job_date||''; }).sort()[0] || '';
     switch (installSortKey) {
-      case 'name-asc':   return (a.customer_name||'').localeCompare(b.customer_name||'');
-      case 'date-asc':   return new Date(a.job_date||0) - new Date(b.job_date||0);
-      case 'date-desc':  return new Date(b.job_date||0) - new Date(a.job_date||0);
+      case 'name-asc':   return (ga[0].customer_name||'').localeCompare(gb[0].customer_name||'');
+      case 'date-asc':   return new Date(dateA||0) - new Date(dateB||0);
+      case 'date-desc':  return new Date(dateB||0) - new Date(dateA||0);
       case 'recv-desc':  return fb.recvOuts - fa.recvOuts;
       case 'recv-asc':   return fa.recvOuts - fb.recvOuts;
       case 'pay-desc':   return fb.payOuts  - fa.payOuts;
       case 'pay-asc':    return fa.payOuts  - fb.payOuts;
       case 'net-desc':   return fb.net - fa.net;
       case 'net-asc':    return fa.net - fb.net;
-      default:           return (a.customer_name||'').localeCompare(b.customer_name||'');
+      default:           return (ga[0].customer_name||'').localeCompare(gb[0].customer_name||'');
     }
   });
 
@@ -1028,7 +1087,22 @@ function renderInstallJobs() {
     el.innerHTML = '<div class="empty">' + (installJobs.length ? 'No jobs match your search.' : 'No jobs yet. Click "+ Add Job" to add one manually, or "Sync HCP" to pull from HousecallPro.') + '</div>';
     return;
   }
-  el.innerHTML = list.map(function(job){ return renderJobCard(job, false); }).join('');
+
+  var html = '';
+  groups.forEach(function(jobGroup) {
+    var cid = jobGroup[0].customer_id;
+    var isMulti = jobGroup.length > 1 && cid && /^\d{5}$/.test(cid);
+    if (isMulti && mergeDecisions[cid] === undefined) {
+      // Show prompt banner for undecided multi-job customer
+      html += renderMergePrompt(jobGroup);
+    } else if (isMulti && mergeDecisions[cid] === true) {
+      html += renderMergedJobCard(jobGroup, false);
+    } else {
+      // Single job OR decided to keep separate
+      jobGroup.forEach(function(job){ html += renderJobCard(job, false); });
+    }
+  });
+  el.innerHTML = html;
 }
 
 function renderJobCard(job, forArchive) {
@@ -1082,6 +1156,85 @@ function renderJobCard(job, forArchive) {
   html += renderReceivablesSection(job);
   html += renderPayablesSection(job);
   html += renderActivitySection(job);
+  html += '</div>'; // .job-body
+  html += '</div>'; // .job-card
+  return html;
+}
+
+// ── Merge prompt ──────────────────────────────────────────
+function renderMergePrompt(jobs) {
+  var rep = jobs[0];
+  var cid = rep.customer_id;
+  var jobNums = jobs.map(function(j){ return j.job_number ? '#' + j.job_number : '(no number)'; }).join(' and ');
+  var html = '<div class="merge-prompt">';
+  html += '<div class="merge-prompt-icon">🔗</div>';
+  html += '<div class="merge-prompt-body">';
+  html += '<div class="merge-prompt-title">Multiple Jobs Found — ' + esc(rep.customer_name||'Unknown') + '</div>';
+  html += '<div class="merge-prompt-detail">We found ' + jobs.length + ' jobs under this customer profile (ID ' + esc(cid) + '): ' + esc(jobNums) + '.<br>Would you like to combine them into one card?</div>';
+  html += '<div class="merge-prompt-btns">';
+  html += '<button class="merge-yes-btn" onclick="setMergeDecision(\'' + esc(cid) + '\', true)">✓ Yes, Combine</button>';
+  html += '<button class="merge-no-btn" onclick="setMergeDecision(\'' + esc(cid) + '\', false)">✗ Keep Separate</button>';
+  html += '</div></div></div>';
+  return html;
+}
+
+// ── Merged job card (one card for multi-job customer) ────
+function renderMergedJobCard(jobs, forArchive) {
+  var primaryJob = jobs[0];
+  var cid = primaryJob.customer_id;
+  var mergedId  = 'merged_' + cid;
+  var mergedSid = mergedId;
+  var isOpen = jobOpenSet.has(mergedId);
+  var f = getMergedFinancials(jobs);
+  var initials = (primaryJob.customer_name||'JB').split(' ').map(function(w){ return w[0]||''; }).join('').toUpperCase().slice(0,2);
+  var netClass = f.net >= 0 ? 'fin-net-pos' : 'fin-net-neg';
+
+  // Create a virtual combined job for rendering sections
+  var virtualJob = {
+    id: primaryJob.id,
+    customer_name: primaryJob.customer_name,
+    customer_id: cid,
+    address: primaryJob.address,
+    job_date: primaryJob.job_date,
+    job_number: jobs.map(function(j){ return j.job_number; }).filter(Boolean).join(', '),
+    hcp_total_amount: jobs.reduce(function(s,j){ return s+(j.hcp_total_amount||0); },0),
+    hcp_amount_paid:  jobs.reduce(function(s,j){ return s+(j.hcp_amount_paid||0); },0),
+    hcp_outstanding:  jobs.reduce(function(s,j){ return s+(j.hcp_outstanding||0); },0),
+    milestones: [].concat.apply([], jobs.map(function(j){ return j.milestones||[]; })),
+    payables:   [].concat.apply([], jobs.map(function(j){ return j.payables||[]; })),
+    activity:   [].concat.apply([], jobs.map(function(j){ return j.activity||[]; }))
+  };
+
+  var html = '<div class="job-card" id="card-' + mergedSid + '">';
+  html += '<div class="job-hd" onclick="toggleJobCard(\'' + mergedId + '\')">';
+  html += '<div class="job-avatar">' + esc(initials) + '</div>';
+  html += '<div class="job-info">';
+  html += '<div class="job-name">' + esc(primaryJob.customer_name||'Unknown') + ' <span class="merged-badge">' + jobs.length + ' jobs combined</span></div>';
+  if (primaryJob.address) html += '<div class="job-addr">' + esc(primaryJob.address) + '</div>';
+  html += '<div style="display:flex;align-items:center;gap:2px;margin-top:2px;">';
+  html += '<span class="job-date-label">Start:</span>';
+  html += '<input type="date" class="job-date-input" value="' + esc((primaryJob.job_date||'').slice(0,10)) + '" ';
+  html += 'onclick="event.stopPropagation()" onchange="event.stopPropagation();saveJobDate(\'' + primaryJob.id + '\',this.value)" />';
+  html += '</div></div>';
+  html += '<span class="job-num-chip" title="Customer ID">ID ' + esc(cid) + '</span>';
+  jobs.forEach(function(job){ if (job.job_number) html += '<span class="job-num-chip">Job #' + esc(job.job_number) + '</span>'; });
+  html += '<div class="job-fin">';
+  html += '<div class="job-fin-item"><div class="job-fin-label">Recv Owed</div><div class="job-fin-val fin-recv">' + fmtMoney(f.recvOuts) + '</div></div>';
+  html += '<div class="job-fin-item"><div class="job-fin-label">Pay Owed</div><div class="job-fin-val fin-pay">' + fmtMoney(f.payOuts) + '</div></div>';
+  html += '<div class="job-fin-item"><div class="job-fin-label">Net</div><div class="job-fin-val ' + netClass + '">' + fmtMoney(f.net) + '</div></div>';
+  html += '</div>';
+  html += '<button class="pdf-btn" onclick="event.stopPropagation();generateJobPDF(\'' + primaryJob.id + '\')" title="Download PDF report">⬇ PDF</button>';
+  if (!forArchive) {
+    html += '<button class="arc-btn" onclick="event.stopPropagation();startArchive(\'' + primaryJob.id + '\')" title="Archive primary job">Archive</button>';
+  }
+  html += '<button class="merge-no-btn" style="font-size:10px;padding:2px 8px;" onclick="event.stopPropagation();setMergeDecision(\'' + esc(cid) + '\',false)" title="Split into separate cards">Split</button>';
+  html += '<span class="job-chevron' + (isOpen ? ' open' : '') + '" id="chev-' + mergedSid + '">&#9658;</span>';
+  html += '</div>'; // .job-hd
+
+  html += '<div class="job-body" id="body-' + mergedSid + '" style="display:' + (isOpen ? 'block' : 'none') + '">';
+  html += renderReceivablesSection(virtualJob);
+  html += renderPayablesSection(virtualJob);
+  html += renderActivitySection(virtualJob);
   html += '</div>'; // .job-body
   html += '</div>'; // .job-card
   return html;
@@ -1149,6 +1302,23 @@ function renderReceivablesSection(job) {
     html += 'Total <strong>' + fmtMoney(job.hcp_total_amount) + '</strong> · ';
     html += 'Paid <strong style="color:#16a34a">' + fmtMoney(job.hcp_amount_paid) + '</strong> · ';
     html += 'Outstanding <strong style="color:#dc2626">' + fmtMoney(job.hcp_outstanding) + '</strong>';
+    html += '</div>';
+  }
+  // HCP payment history
+  var hcpPmts = job.hcp_payments || [];
+  if (hcpPmts.length > 0) {
+    html += '<div class="hcp-payments-block">';
+    html += '<div class="hcp-payments-title">💳 Payments Received (from HCP)</div>';
+    html += '<table class="hcp-pmt-table"><thead><tr><th>Date</th><th>Amount</th><th>Method</th></tr></thead><tbody>';
+    hcpPmts.forEach(function(p) {
+      var d = p.date ? p.date.slice(0,10) : '—';
+      html += '<tr>';
+      html += '<td>' + esc(d) + '</td>';
+      html += '<td style="text-align:right;color:#16a34a;font-weight:600;">' + fmtMoney(p.amount) + '</td>';
+      html += '<td>' + esc(p.method||'—') + '</td>';
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
     html += '</div>';
   }
 
@@ -1308,9 +1478,13 @@ async function deleteMilestone(milestoneId) {
 function updateMilestoneTotals(jobId) {
   var job = findInstallJob(jobId);
   if (!job) return;
-  var sid = jobId.replace(/-/g,'_');
-  var totalDue  = job.milestones.reduce(function(s,m){ return s+(m.amount_due||0); },0);
-  var totalPaid = job.milestones.reduce(function(s,m){ return s+(m.amount_paid||0); },0);
+  // For merged cards, use primary job's sid and combined milestones
+  var cid = job.customer_id;
+  var groupJobs = (cid && mergeDecisions[cid] === true) ? installJobs.filter(function(j){ return j.customer_id === cid; }) : [job];
+  var sid = groupJobs[0].id.replace(/-/g,'_');
+  var allMs = [].concat.apply([], groupJobs.map(function(j){ return j.milestones||[]; }));
+  var totalDue  = allMs.reduce(function(s,m){ return s+(m.amount_due||0); },0);
+  var totalPaid = allMs.reduce(function(s,m){ return s+(m.amount_paid||0); },0);
   var totalOuts = totalDue - totalPaid;
   var dEl = document.getElementById('ms-total-due-' + sid);
   var pEl = document.getElementById('ms-total-paid-' + sid);
@@ -1520,11 +1694,13 @@ async function deletePayable(payableId) {
 function updateCatStats(jobId, catKey) {
   var job = findInstallJob(jobId);
   if (!job) return;
-  var sid   = jobId.replace(/-/g,'_');
-  var catId = sid + '_' + catKey;
-  // Find cat name from catKey
+  // For merged cards, use primary job's sid and combined payables
+  var cid = job.customer_id;
+  var groupJobs = (cid && mergeDecisions[cid] === true) ? installJobs.filter(function(j){ return j.customer_id === cid; }) : [job];
+  var primarySid = groupJobs[0].id.replace(/-/g,'_');
+  var catId = primarySid + '_' + catKey;
   var cat = Object.keys(CAT_IDS).find(function(k){ return CAT_IDS[k] === catKey; }) || '';
-  var catPayables = job.payables.filter(function(p){ return p.category === cat; });
+  var catPayables = [].concat.apply([], groupJobs.map(function(j){ return (j.payables||[]).filter(function(p){ return p.category === cat; }); }));
   var catDue  = catPayables.reduce(function(s,p){ return s+(p.total_amount||0); },0);
   var catPaid = catPayables.reduce(function(s,p){ return s+(p.amount_paid||0); },0);
   var catOuts = catDue - catPaid;
@@ -1539,6 +1715,25 @@ function updateCatStats(jobId, catKey) {
 function updateJobHeaderStats(jobId) {
   var job = findInstallJob(jobId);
   if (!job) return;
+  // For merged cards, update the merged card header using combined financials
+  var cid = job.customer_id;
+  if (cid && mergeDecisions[cid] === true) {
+    var groupJobs = installJobs.filter(function(j){ return j.customer_id === cid; });
+    if (groupJobs.length > 1) {
+      var f = getMergedFinancials(groupJobs);
+      var card = document.getElementById('card-merged_' + cid);
+      if (card) {
+        var fins = card.querySelector('.job-hd').querySelectorAll('.job-fin-val');
+        if (fins.length >= 3) {
+          fins[0].textContent = fmtMoney(f.recvOuts);
+          fins[1].textContent = fmtMoney(f.payOuts);
+          fins[2].textContent = fmtMoney(f.net);
+          fins[2].className = 'job-fin-val ' + (f.net >= 0 ? 'fin-net-pos' : 'fin-net-neg');
+        }
+      }
+      return;
+    }
+  }
   var f   = getJobFinancials(job);
   var sid = jobId.replace(/-/g,'_');
   var card = document.getElementById('card-' + sid);
